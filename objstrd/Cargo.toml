@@ -1,0 +1,65 @@
+[package]
+name = "objstrd"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "S3-compatible distributed object store daemon (standalone, node, or coordinator mode)"
+readme = "README.md"
+keywords = ["object-store", "s3", "block-device", "storage"]
+categories = ["web-programming::http-server", "database"]
+
+[features]
+default = ["s3-backend"]
+s3-backend = ["object_store/aws"]
+lance = ["dep:lancedb", "dep:lance-io", "dep:lance-core", "dep:arrow-array", "dep:arrow-schema", "dep:url", "dep:rand"]
+
+[dependencies]
+s3s = "0.13"
+s3s-fs = { version = "0.13", optional = true }
+object_store = { version = "0.12", features = [] }
+rawobjstr = { path = "../rawobjstr" }
+shardedobjstr = { path = "../shardedobjstr" }
+async-trait = "0.1"
+async-stream = "0.3"
+bytes = "1"
+crc32c = "0.6"
+futures = "0.3"
+tokio = { version = "1", features = ["fs", "io-util", "net", "rt", "rt-multi-thread", "macros", "signal"] }
+tokio-util = { version = "0.7", features = ["io"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto", "server-graceful"] }
+http = "1"
+http-body-util = "0.1"
+md5 = "0.7"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+time = { version = "0.3", features = [] }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+parking_lot = "0.12"
+tempfile = "3"
+percent-encoding = "2"
+lancedb = { version = "0.27", optional = true }
+lance-io = { version = "4.0", optional = true }
+lance-core = { version = "4.0", optional = true }
+arrow-array = { version = "57", optional = true }
+arrow-schema = { version = "57", optional = true }
+url = { version = "2", optional = true }
+rand = { version = "0.8", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+reqwest = { version = "0.12", features = ["stream", "json"] }
+serde_json = "1"
+portpicker = "0.1"
+
+[[bin]]
+name = "objstrd"
+path = "src/bin/server.rs"
+
+[[example]]
+name = "bench_lance"
+required-features = ["lance"]

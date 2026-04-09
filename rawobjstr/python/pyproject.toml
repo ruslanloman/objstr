@@ -1,0 +1,40 @@
+[build-system]
+requires = ["maturin>=1.7"]
+build-backend = "maturin"
+
+[project]
+name = "rawobjstr"
+dynamic = ["version"]
+requires-python = ">=3.9"
+description = "Python bindings for rawobjstr -- bypass the filesystem for 2-5x faster I/O"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Operating System :: POSIX :: Linux",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: System :: Filesystems",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+fsspec = ["fsspec>=2023.1"]
+
+[project.entry-points."fsspec.specs"]
+rawobjstr = "rawobjstr.fsspec_impl:RawObjStFileSystem"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "rawobjstr._rawobjstr"
+
+[tool.pytest.ini_options]
+markers = [
+    "examples: fsspec integration examples (need extra deps: pandas, polars, pyarrow)",
+]
+# By default, only run core tests -- skip the examples/ directory.
+# To run examples:  pytest tests/examples/ -v -m examples
+testpaths = ["tests"]
+addopts = "-m 'not examples'"

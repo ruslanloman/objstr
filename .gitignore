@@ -1,0 +1,32 @@
+/target/
+/build-*/
+
+# Editor / OS
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+.venv/
+.tox/
+.eggs/
+
+# Test artifacts
+*.raw
+
+# Internal development files (not part of the published project)
+tmp_*.sh
+tmp_*.py

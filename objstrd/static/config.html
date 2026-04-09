@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>objstrd - Node Config</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --surface2: #21262d;
+    --border:   #30363d;
+    --text:     #c9d1d9;
+    --text-dim: #8b949e;
+    --text-hi:  #f0f6fc;
+    --accent:   #58a6ff;
+    --green:    #3fb950;
+    --amber:    #d29922;
+    --red:      #f85149;
+  }
+  [data-theme="light"] {
+    --bg:       #ffffff;
+    --surface:  #f6f8fa;
+    --surface2: #eaeef2;
+    --border:   #d0d7de;
+    --text:     #1f2328;
+    --text-dim: #656d76;
+    --text-hi:  #1f2328;
+    --accent:   #0969da;
+    --green:    #1a7f37;
+    --red:      #cf222e;
+    --amber:    #9a6700;
+  }
+  .theme-toggle { background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+  .theme-toggle:hover { color: var(--text-hi); border-color: var(--accent); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+  .site-nav { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; align-items: center; flex-wrap: wrap; }
+  .nav-link { color: var(--text-dim); text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 6px; border: 1px solid transparent; }
+  .nav-link:hover { color: var(--text-hi); background: var(--surface2); }
+  .nav-link.active { color: var(--text-hi); background: var(--surface2); border-color: var(--border); }
+  h1 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
+  h2 { font-size: 12px; margin: 20px 0 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+  .prop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 20px; font-size: 13px; }
+  .prop-row { display: flex; flex-direction: column; gap: 2px; }
+  .prop-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .prop-value { color: var(--text-hi); font-weight: 600; }
+  .prop-value.mono { font-family: 'Consolas', 'Cascadia Code', monospace; font-size: 12px; }
+  .prop-value.ok { color: var(--green); }
+  .prop-value.warn { color: var(--amber); }
+  .prop-value.off { color: var(--text-dim); }
+
+  .shard-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .shard-table th { text-align: left; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 10px 8px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .shard-table td { padding: 7px 10px; border-bottom: 1px solid rgba(48,54,61,0.4); vertical-align: middle; }
+  .shard-table tr:last-child td { border-bottom: none; }
+  .shard-table tr:hover td { background: var(--surface2); }
+  .shard-id { font-size: 11px; color: var(--text-dim); font-family: monospace; }
+  .shard-type { font-size: 11px; padding: 1px 7px; border-radius: 8px; }
+  .shard-type.raw { color: var(--accent); background: rgba(88,166,255,0.12); }
+  .shard-type.fs { color: var(--green); background: rgba(63,185,80,0.12); }
+  .shard-type.s3 { color: var(--amber); background: rgba(210,153,34,0.12); }
+  .shard-type.node { color: #bc8cff; background: rgba(188,140,255,0.12); }
+  .shard-type.mem { color: var(--text-dim); background: var(--surface2); }
+
+  .ascii-tree { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace; font-size: 13px; line-height: 1.7; overflow-x: auto; white-space: pre; color: var(--text); }
+  .ascii-tree .node-line { color: var(--accent); }
+  .ascii-tree .shard-line-raw { color: var(--green); }
+  .ascii-tree .shard-line-s3 { color: var(--amber); }
+  .ascii-tree .shard-line-fs { color: #4ed0a0; }
+  .ascii-tree .shard-line-mem { color: var(--text-dim); }
+
+  .recovery-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .recovery-table td { padding: 6px 10px; border-bottom: 1px solid rgba(48,54,61,0.4); vertical-align: middle; }
+  .recovery-table td:first-child { color: var(--text-dim); font-size: 12px; width: 220px; }
+  .recovery-table td:last-child { color: var(--text-hi); font-weight: 600; font-size: 12px; }
+  .recovery-table tr:last-child td { border-bottom: none; }
+
+  .status-bar { font-size: 11px; color: var(--text-dim); margin-top: 20px; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <span id="nav-node-name" style="font-size:13px;font-weight:600;color:var(--text-hi);padding:5px 12px;display:none"></span>
+  <a href="/_admin/" class="nav-link">Cluster</a>
+  <a href="/_admin/viz" class="nav-link" id="nav-viz">Visualizer</a>
+  <a href="/_admin/ui" class="nav-link">Manager</a>
+  <a href="/_admin/server" class="nav-link">Server Info</a>
+  <a href="/_admin/logs/ui" class="nav-link">Logs</a>
+  <a href="/_admin/config" class="nav-link active">Config</a>
+  <span id="nav-ro-badge" style="display:none;margin-left:auto;font-size:11px;font-weight:600;color:var(--amber);background:rgba(210,153,34,0.12);padding:2px 8px;border-radius:10px">READ-ONLY</span>
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark" style="margin-left:auto">&#9790;</button>
+</nav>
+
+<h1>Node Config</h1>
+
+<h2>Node Identity</h2>
+<div class="card">
+  <div class="prop-grid" id="identity-grid">
+    <div class="prop-row"><span class="prop-label">Role</span><span class="prop-value" id="cfg-role">-</span></div>
+    <div class="prop-row"><span class="prop-label">Port</span><span class="prop-value" id="cfg-port">-</span></div>
+    <div class="prop-row"><span class="prop-label">Bind</span><span class="prop-value" id="cfg-bind">-</span></div>
+    <div class="prop-row"><span class="prop-label">Bucket</span><span class="prop-value" id="cfg-bucket">-</span></div>
+    <div class="prop-row"><span class="prop-label">Mode</span><span class="prop-value" id="cfg-mode">-</span></div>
+    <div class="prop-row"><span class="prop-label">Shard Count</span><span class="prop-value" id="cfg-shards">-</span></div>
+    <div class="prop-row"><span class="prop-label">Replication Factor</span><span class="prop-value" id="cfg-rf">-</span></div>
+  </div>
+</div>
+
+<h2>Shards</h2>
+<div class="card">
+  <table class="shard-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Type</th>
+      </tr>
+    </thead>
+    <tbody id="shards-tbody">
+      <tr><td colspan="3" style="color:var(--text-dim)">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Cluster Tree (ASCII)</h2>
+<div class="card">
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">
+    Visual representation of this node and its shards based on active configuration.
+  </p>
+  <div class="ascii-tree" id="ascii-tree">Loading...</div>
+</div>
+
+<h2>Recovery Configuration</h2>
+<div class="card">
+  <table class="recovery-table" id="recovery-table">
+    <tr><td>Status</td><td id="rec-status">-</td></tr>
+    <tr><td>Poll interval</td><td id="rec-poll">-</td></tr>
+    <tr><td>Probe timeout</td><td id="rec-probe">-</td></tr>
+    <tr><td>Failure threshold</td><td id="rec-thresh">-</td></tr>
+    <tr><td>Re-replicate batch size</td><td id="rec-batch">-</td></tr>
+  </table>
+</div>
+
+<h2>CLI Command</h2>
+<div class="card">
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">
+    Command line used to start this server instance.
+  </p>
+  <div class="ascii-tree" id="cli-command">Loading...</div>
+</div>
+
+<div id="config-file-section" style="display:none">
+  <h2>Config File</h2>
+  <div class="card">
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:10px">
+      Contents of the configuration file loaded at startup.
+    </p>
+    <div class="ascii-tree" id="config-file-content"></div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <span id="status-msg">-</span>
+  <span>build: __BUILD_INFO__</span>
+</div>
+
+<script>
+const _adminToken = new URLSearchParams(location.search).get('token');
+const authFetch = (url, opts) => {
+  if (_adminToken) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'Authorization': 'Bearer ' + _adminToken }, opts.headers || {});
+  }
+  return fetch(url, opts);
+};
+
+// -- Nav info (one-time) --
+authFetch('/_admin/info').then(function(r) { return r.json(); }).then(function(d) {
+  if (d.node_name) { var nn = document.getElementById('nav-node-name'); if (nn) { nn.textContent = d.node_name; nn.style.display = ''; } }
+  if (d.has_raw === false) { var v = document.getElementById('nav-viz'); if (v) v.style.display = 'none'; }
+  if (d.read_only) { var ro = document.getElementById('nav-ro-badge'); if (ro) ro.style.display = ''; }
+}).catch(function() {});
+
+function typeClass(t) {
+  if (t === 'raw') return 'raw';
+  if (t === 'fs') return 'fs';
+  if (t === 's3') return 's3';
+  if (t === 'node') return 'node';
+  return 'mem';
+}
+
+function buildAsciiTree(cfg) {
+  const lines = [];
+  const nodeName = cfg.role === 'standalone' ? 'standalone' : 'node';
+  const rf = cfg.replication_factor;
+  lines.push(nodeName + '  rf=' + rf + '  port=' + cfg.port);
+  const shards = cfg.shards || [];
+  shards.forEach(function(s, i) {
+    const isLast = (i === shards.length - 1);
+    const prefix = isLast ? '  +-- ' : '  |-- ';
+    const typeTag = '  [' + (s.type || 'raw') + ']';
+    lines.push(prefix + (s.name || ('shard-' + s.id)) + typeTag);
+  });
+  return lines.join('\n');
+}
+
+async function load() {
+  try {
+    const [cfgR, recR] = await Promise.all([
+      authFetch('/_admin/nodeconfig'),
+      authFetch('/_admin/recovery'),
+    ]);
+
+    if (cfgR.ok) {
+      const cfg = await cfgR.json();
+
+      document.getElementById('cfg-role').textContent = cfg.role || '-';
+      document.getElementById('cfg-port').textContent = cfg.port != null ? cfg.port : '-';
+      document.getElementById('cfg-bind').textContent = cfg.bind || '-';
+      document.getElementById('cfg-bucket').textContent = cfg.bucket || '-';
+      document.getElementById('cfg-mode').textContent = cfg.cluster_mode ? 'sharded' : 'single';
+      document.getElementById('cfg-shards').textContent = cfg.shard_count != null ? cfg.shard_count : '-';
+      document.getElementById('cfg-rf').textContent = cfg.replication_factor != null ? cfg.replication_factor + 'x' : '-';
+
+      const tbody = document.getElementById('shards-tbody');
+      if (cfg.shards && cfg.shards.length > 0) {
+        tbody.innerHTML = cfg.shards.map(function(s) {
+          const tc = typeClass(s.type || 'raw');
+          return '<tr>' +
+            '<td><span class="shard-id">#' + s.id + '</span></td>' +
+            '<td style="color:var(--text-hi);font-weight:600">' + (s.name || ('shard-' + s.id)) + '</td>' +
+            '<td><span class="shard-type ' + tc + '">' + (s.type || 'raw') + '</span></td>' +
+            '</tr>';
+        }).join('');
+      } else {
+        tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-dim)">No shards</td></tr>';
+      }
+
+      document.getElementById('ascii-tree').textContent = buildAsciiTree(cfg);
+
+      // CLI command
+      if (cfg.cli_command) {
+        document.getElementById('cli-command').textContent = cfg.cli_command;
+      } else {
+        document.getElementById('cli-command').textContent = '(not available)';
+      }
+
+      // Config file content
+      if (cfg.config_content) {
+        document.getElementById('config-file-section').style.display = 'block';
+        document.getElementById('config-file-content').textContent = cfg.config_content;
+      }
+    }
+
+    if (recR && recR.ok) {
+      const rec = await recR.json();
+      const enabled = rec.enabled !== false;
+
+      const statusEl = document.getElementById('rec-status');
+      statusEl.textContent = enabled ? 'enabled' : 'disabled';
+      statusEl.style.color = enabled ? 'var(--green)' : 'var(--text-dim)';
+
+      document.getElementById('rec-poll').textContent =
+        rec.poll_interval_secs != null ? rec.poll_interval_secs + ' s' : '-';
+      document.getElementById('rec-probe').textContent =
+        rec.probe_timeout_secs != null ? rec.probe_timeout_secs + ' s' : '-';
+      document.getElementById('rec-thresh').textContent =
+        rec.failure_threshold != null ? rec.failure_threshold + ' consecutive failures' : '-';
+      document.getElementById('rec-batch').textContent =
+        rec.re_replicate_batch_size != null ? rec.re_replicate_batch_size + ' objects / sweep' : '-';
+    }
+
+    document.getElementById('status-msg').textContent =
+      'Loaded: ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    document.getElementById('status-msg').textContent = 'Error: ' + e.message;
+  }
+}
+
+load();
+</script>
+<script>
+(function(){
+  var t = localStorage.getItem('objstrd-theme');
+  if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = t === 'light' ? '\u2600' : '\u263E';
+})();
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'light' ? 'dark' : 'light';
+  if (next === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('objstrd-theme', next);
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = next === 'light' ? '\u2600' : '\u263E';
+}
+</script>
+</body>
+</html>

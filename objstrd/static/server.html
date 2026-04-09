@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Server Info</title>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #21262d;
+      --border:   #30363d;
+      --text:     #c9d1d9;
+      --text-dim: #8b949e;
+      --text-hi:  #f0f6fc;
+      --accent:   #58a6ff;
+      --green:    #3fb950;
+      --red:      #da3633;
+      --amber:    #d29922;
+    }
+    [data-theme="light"] {
+      --bg:       #ffffff;
+      --surface:  #f6f8fa;
+      --surface2: #eaeef2;
+      --border:   #d0d7de;
+      --text:     #1f2328;
+      --text-dim: #656d76;
+      --text-hi:  #1f2328;
+      --accent:   #0969da;
+      --green:    #1a7f37;
+      --red:      #cf222e;
+      --amber:    #9a6700;
+    }
+    .theme-toggle { background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+    .theme-toggle:hover { color: var(--text-hi); border-color: var(--accent); }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+    /* -- Nav -- */
+    .site-nav { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; align-items: center; }
+    .nav-link { color: var(--text-dim); text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 6px; border: 1px solid transparent; }
+    .nav-link:hover { color: var(--text-hi); background: var(--surface2); }
+    .nav-link.active { color: var(--text-hi); background: var(--surface2); border-color: var(--border); }
+    /* -- Typography -- */
+    h1 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
+    h2 { font-size: 12px; margin: 0 0 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+    /* -- Panels -- */
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; margin-bottom: 12px; }
+    .panels-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 0; }
+    /* -- Info grid -- */
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0 16px; margin-top: 4px; }
+    .info-row { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--surface2); }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: var(--text-dim); min-width: 160px; font-size: 12px; }
+    .info-value { color: var(--text-hi); font-weight: 600; font-size: 12px; }
+    /* -- Tab bar -- */
+    .tab-bar { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .tab { cursor: pointer; color: var(--text-dim); font-size: 13px; padding: 5px 14px; border-radius: 6px; border: 1px solid transparent; }
+    .tab.active { color: var(--text-hi); background: var(--surface2); border-color: var(--border); }
+    .tab:hover:not(.active) { color: var(--text); background: var(--surface2); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    /* -- Usage bar -- */
+    .bar-track { background: var(--surface2); border-radius: 3px; height: 10px; width: 120px; display: inline-block; vertical-align: middle; border: 1px solid var(--border); }
+    .bar-fill  { height: 10px; border-radius: 3px; background: var(--accent); transition: width .3s; }
+    /* -- Device card grid -- */
+    .devices-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; }
+    /* -- Live dot -- */
+    .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 5px; vertical-align: middle; animation: live-pulse 2s infinite; }
+    @keyframes live-pulse {
+      0%   { box-shadow: 0 0 0 0   rgba(63,185,80,.6); }
+      70%  { box-shadow: 0 0 0 6px rgba(63,185,80,0);  }
+      100% { box-shadow: 0 0 0 0   rgba(63,185,80,0);  }
+    }
+    .status-bar { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+    /* -- Placeholder -- */
+    .placeholder { color: var(--text-dim); text-align: center; padding: 32px; font-size: 13px; }
+    /* -- Action buttons -- */
+    .action-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 12px; padding: 5px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; }
+    .action-btn:hover { background: var(--border); color: var(--text-hi); }
+    .action-btn.danger { border-color: var(--red); color: var(--red); }
+    .action-btn.danger:hover { background: var(--red); color: #fff; }
+    .action-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+    .btn-msg { font-size: 11px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <span id="nav-node-name" style="font-size:13px;font-weight:600;color:var(--text-hi);padding:5px 12px;display:none"></span>
+  <a href="/_admin/" class="nav-link">Cluster</a>
+  <a href="/_admin/viz" class="nav-link" id="nav-viz">Visualizer</a>
+  <a href="/_admin/ui" class="nav-link">Manager</a>
+  <a href="/_admin/server" class="nav-link active">Server Info</a>
+  <a href="/_admin/logs/ui" class="nav-link">Logs</a>
+  <a href="/_admin/config" class="nav-link">Config</a>
+  <span id="nav-ro-badge" style="display:none;margin-left:auto;font-size:11px;font-weight:600;color:var(--amber);background:rgba(210,153,34,0.12);padding:2px 8px;border-radius:10px">READ-ONLY</span>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:4px">
+    <label for="poll-select" style="font-size:11px;color:var(--text-dim)">Poll:</label>
+    <select id="poll-select" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:11px;font-family:inherit">
+      <option value="2000">2s</option>
+      <option value="5000" selected>5s</option>
+      <option value="30000">30s</option>
+      <option value="120000">2 min</option>
+      <option value="900000">15 min</option>
+      <option value="0">None</option>
+    </select>
+  </span>
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark">&#9790;</button>
+</nav>
+
+<h1 id="page-title">Server Info</h1>
+
+<div class="tab-bar">
+  <div class="tab active"  id="tabl-overview" onclick="switchTab(event,'overview')">Overview</div>
+  <div class="tab"         id="tabl-nodes"    onclick="switchTab(event,'nodes')">Nodes</div>
+</div>
+
+<!-- ====== TAB: Overview ====== -->
+<div id="tab-overview" class="tab-pane active">
+
+  <div class="panels-row">
+    <!-- Daemon -->
+    <div class="panel">
+      <h2>Daemon</h2>
+      <div id="daemon-grid" class="info-grid"><div class="info-row"><span class="info-label">Loading...</span></div></div>
+      <div class="btn-row">
+        <button class="action-btn danger" id="reload-btn" onclick="reloadServer()">Reload Config</button>
+        <span id="reload-msg" class="btn-msg"></span>
+      </div>
+    </div>
+    <!-- Node -->
+    <div class="panel">
+      <h2>Node</h2>
+      <div id="node-grid" class="info-grid"><div class="info-row"><span class="info-label">Loading...</span></div></div>
+    </div>
+  </div>
+
+  <!-- Storage Summary (cluster mode only) -->
+  <div id="storage-summary" style="display:none;margin-top:12px">
+    <div class="panel">
+      <h2>Storage Summary</h2>
+      <div id="summary-grid" class="info-grid"></div>
+    </div>
+  </div>
+
+  <!-- Device panels (one per shard, or single in standalone) -->
+  <div id="devices-container">
+    <div class="panel" style="margin-top:12px">
+      <h2>Device</h2>
+      <div id="device-grid" class="info-grid"><div class="info-row"><span class="info-label">Loading...</span></div></div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span class="live-dot"></span>
+    <span id="status-ts">Loading...</span>
+  </div>
+
+</div>
+
+<!-- ====== TAB: Nodes ====== -->
+<div id="tab-nodes" class="tab-pane">
+  <div class="panel">
+    <h2>Cluster Nodes</h2>
+    <div class="placeholder">Single-node configuration. Distributed cluster support coming soon.</div>
+  </div>
+</div>
+
+<script>
+  // ---- Admin token ----
+  function getToken() { return localStorage.getItem('admin_token') || ''; }
+  function authFetch(url, opts) {
+    var tok = getToken();
+    var headers = Object.assign({}, (opts && opts.headers) || {});
+    if (tok) headers['Authorization'] = 'Bearer ' + tok;
+    return fetch(url, Object.assign({}, opts, { headers }));
+  }
+
+  // ---- Per-shard detection ----
+var _shardMatch = location.pathname.match(/^\/\_admin\/shard\/(\d+)\//);
+  var API_BASE = _shardMatch ? '/_admin/shard/' + _shardMatch[1] + '/' : '/_admin/';
+  var IS_SHARD = !!_shardMatch;
+
+  // ---- Dropdown nav builder ----
+  // (removed -- using static nav links)
+
+  // ---- Tab switching ----
+  function switchTab(ev, name) {
+    document.querySelectorAll('.tab-pane').forEach(function(el) { el.classList.remove('active'); });
+    document.querySelectorAll('.tab').forEach(function(el) { el.classList.remove('active'); });
+    document.getElementById('tab-' + name).classList.add('active');
+    ev.currentTarget.classList.add('active');
+  }
+
+  // ---- Utilities ----
+  function fmtBytes(n) {
+    n = Number(n);
+    if (n === 0) return '0 B';
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1073741824) return (n / 1048576).toFixed(2) + ' MB';
+    return (n / 1073741824).toFixed(2) + ' GB';
+  }
+
+  function fmtBar(used, total) {
+    var pct = total ? Math.min(100, Math.round(Number(used) / Number(total) * 100)) : 0;
+    return '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%"></span></span> ' + pct + '%';
+  }
+
+  function fmtDuration(totalSecs) {
+    totalSecs = Math.floor(Number(totalSecs));
+    if (totalSecs < 60) return totalSecs + 's';
+    var d = Math.floor(totalSecs / 86400);
+    var h = Math.floor((totalSecs % 86400) / 3600);
+    var m = Math.floor((totalSecs % 3600) / 60);
+    var s = totalSecs % 60;
+    if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+    if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
+    return m + 'm ' + s + 's';
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderGrid(elId, rows) {
+    document.getElementById(elId).innerHTML = rows.map(function(r) {
+      return '<div class="info-row">' +
+        '<span class="info-label">' + r[0] + '</span>' +
+        '<span class="info-value">'  + r[1] + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  function renderDevicePanel(parentEl, title, info) {
+    var panel = document.createElement('div');
+    panel.className = 'panel';
+    var isOffline = info.health && info.health.toLowerCase() === 'offline';
+    if (isOffline) {
+      panel.style.opacity = '0.55';
+      panel.style.borderStyle = 'dashed';
+      panel.style.borderColor = 'var(--red)';
+    }
+    var gridId = 'dev-grid-' + Math.random().toString(36).substr(2, 6);
+    var isRaw = (info.type === 'raw' || (!info.type && info.device_path));
+    var badge = isOffline
+      ? ' <span style="color:var(--red);font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(218,54,51,0.12)">OFFLINE</span>'
+      : '';
+    panel.innerHTML = '<h2>' + escHtml(title) + badge + '</h2><div id="' + gridId + '" class="info-grid"></div>';
+    parentEl.appendChild(panel);
+    var rows;
+    if (isOffline) {
+      rows = [
+        ['Health',  '<span style="color:var(--red);font-weight:700">Offline</span>'],
+        ['Type',    info.type || 'unknown'],
+      ];
+    } else if (isRaw) {
+      rows = [
+        ['Device Path',    escHtml(info.device_path || '')],
+        ['Direct IO',      info.direct_io ? 'yes' : 'no'],
+        ['Compression',    info.compression || 'none'],
+        ['File Count',     info.file_count || 0],
+        ['Data Stored',    fmtBytes(info.data_bytes_stored || 0)],
+        ['Free Space',     fmtBytes(info.free_space || 0)],
+        ['Free Fragments', info.free_fragments || 0],
+        ['Device Size',    fmtBytes(info.device_size || 0)],
+        ['Device Used',    fmtBytes(info.device_bytes_used || 0) + ' &nbsp; ' + fmtBar(info.device_bytes_used || 0, info.device_size || 0)],
+      ];
+    } else {
+      rows = [
+        ['Type',         info.type || 'unknown'],
+        ['File Count',   info.file_count || 0],
+        ['Data Stored',  fmtBytes(info.data_bytes_stored || 0)],
+      ];
+    }
+    document.getElementById(gridId).innerHTML = rows.map(function(r) {
+      return '<div class="info-row"><span class="info-label">' + r[0] + '</span><span class="info-value">' + r[1] + '</span></div>';
+    }).join('');
+  }
+
+  // ---- Fetch and render ----
+  async function fetchInfo() {
+    try {
+      var infoR = await authFetch(API_BASE + 'info');
+      if (!infoR.ok) return;
+      var d = await infoR.json();
+
+      // Update title based on backend type
+      var hasRaw = d.has_raw !== false;
+      var titleEl = document.getElementById('page-title');
+      titleEl.textContent = 'Server Info';
+
+      // Update nav: node name, read-only badge, hide viz if no raw
+      if (d.node_name) {
+        var nn = document.getElementById('nav-node-name');
+        if (nn) { nn.textContent = d.node_name; nn.style.display = ''; }
+      }
+      if (!hasRaw) {
+        var vizLink = document.getElementById('nav-viz');
+        if (vizLink) vizLink.style.display = 'none';
+      }
+      if (d.read_only) {
+        var navRo = document.getElementById('nav-ro-badge');
+        if (navRo) navRo.style.display = '';
+      }
+
+      var mode = d.read_only ? 'read-only' : (d.cluster_mode ? 'sharded' : 'standalone');
+
+      renderGrid('daemon-grid', [
+        ['PID',        d.pid],
+        ['Port',       d.port],
+        ['Bind',       d.bind],
+        ['Backend',    d.backend || 'raw'],
+        ['Mode',       mode],
+        ['Build',      escHtml(d.build_git_hash || 'unknown')],
+        ['Build Date', escHtml(d.build_date || '')],
+        ['rawobjstr',     escHtml((d.rawobjst_version || '?') + ' (' + (d.rawobjst_git_hash || '?') + ')')],
+        ['shardedobjstr', escHtml((d.shardedobjstr_version || '?') + ' (' + (d.shardedobjstr_git_hash || '?') + ')')],
+      ]);
+
+      // In cluster mode at top level, fetch all shards and show all devices
+      if (d.cluster_mode && !IS_SHARD) {
+        var [shardsR, objR] = await Promise.all([
+          authFetch('/_admin/shards'),
+          authFetch('/_admin/objects?limit=1'),
+        ]);
+        var uniqueFiles = 0;
+        try { if (objR && objR.ok) { var od = await objR.json(); uniqueFiles = od.total || 0; } } catch(e) {}
+        if (shardsR.ok) {
+          var shardsData = await shardsR.json();
+          var shards = shardsData.shards || [];
+
+          // Nav already static, no rebuild needed
+
+          var totalSize = 0, totalUsed = 0, totalFree = 0, totalFiles = 0, totalData = 0;
+          for (var i = 0; i < shards.length; i++) {
+            var s = shards[i];
+            totalSize += Number(s.device_size || 0);
+            totalUsed += Number(s.device_bytes_used || 0);
+            totalFree += Number(s.free_space != null ? s.free_space : 0);
+            totalFiles += Number(s.file_count || 0);
+            totalData += Number(s.data_bytes_stored || 0);
+          }
+
+          var rf = shardsData.replication_factor || 1;
+          var numShards = shardsData.shard_count || shards.length;
+          var effFactor = Math.max(1, numShards - rf + 1) / numShards;
+          var effectiveSize = Math.floor(totalSize * effFactor);
+          var effectiveFree = Math.floor(totalFree * effFactor);
+
+          // Show storage summary
+          document.getElementById('storage-summary').style.display = 'block';
+          renderGrid('summary-grid', [
+            ['Shards',             numShards],
+            ['Replication Factor', rf + 'x'],
+            ['Total Files',        totalFiles],
+            ['Unique Files',       uniqueFiles],
+            ['Total Data Stored',  fmtBytes(totalData)],
+            ['Raw Capacity',       fmtBytes(totalSize)],
+            ['Effective Capacity', fmtBytes(effectiveSize)],
+            ['Raw Free',           fmtBytes(totalFree)],
+            ['Effective Free',     fmtBytes(effectiveFree)],
+            ['Raw Used',           fmtBytes(totalUsed) + ' &nbsp; ' + fmtBar(totalUsed, totalSize)],
+          ]);
+
+          // Render one device panel per shard
+          var container = document.getElementById('devices-container');
+          container.innerHTML = '';
+          var devGrid = document.createElement('div');
+          devGrid.className = 'devices-grid';
+          devGrid.style.marginTop = '12px';
+          container.appendChild(devGrid);
+          for (var j = 0; j < shards.length; j++) {
+            var sh = shards[j];
+            renderDevicePanel(devGrid, (sh.name || ('shard-' + sh.id)) + ' (#' + sh.id + ')', sh);
+          }
+        }
+      } else if (d.device_path) {
+        // Single mode or per-shard view: show single device
+        renderGrid('device-grid', [
+          ['Device Path',    escHtml(d.device_path)],
+          ['Format Version', d.format_version],
+          ['Direct IO',      d.direct_io ? 'yes' : 'no'],
+          ['Read Only',      d.read_only  ? 'yes' : 'no'],
+          ['Compression',    d.compression || 'none'],
+          ['Transaction ID', d.txn_id],
+          ['File Count',     d.file_count],
+          ['Data Stored',    fmtBytes(d.data_bytes_stored)],
+          ['Index Size',     fmtBytes(d.index_serialized_bytes)],
+          ['Free Space',     fmtBytes(d.free_space)],
+          ['Free Fragments', d.free_fragments],
+          ['Largest Free',   fmtBytes(d.largest_free_extent)],
+          ['Device Size',    fmtBytes(d.device_size)],
+          ['Device Used',    fmtBytes(d.device_bytes_used) + ' &nbsp; ' + fmtBar(d.device_bytes_used, d.device_size)],
+        ]);
+      } else {
+        // Non-raw standalone: show store info
+        var storeRows = [
+          ['Backend',      escHtml(d.backend || 'unknown')],
+          ['Read Only',    d.read_only ? 'yes' : 'no'],
+          ['File Count',   d.file_count != null ? d.file_count : '-'],
+          ['Data Stored',  d.data_bytes_stored != null ? fmtBytes(d.data_bytes_stored) : '-'],
+        ];
+        renderGrid('device-grid', storeRows);
+      }
+    } catch (err) {
+      document.getElementById('daemon-grid').textContent = 'Error: ' + err.message;
+    }
+  }
+
+  // ---- Fetch /_admin/sysinfo ----
+  async function fetchSysinfo() {
+    try {
+      var r = await authFetch('/_admin/sysinfo');
+      if (!r.ok) return;
+      var d = await r.json();
+
+      var usedKb = Number(d.mem_total_kb) - Number(d.mem_available_kb);
+
+      renderGrid('node-grid', [
+        ['System Uptime',  fmtDuration(d.system_uptime_secs)],
+        ['Process Uptime', fmtDuration(d.process_uptime_secs)],
+        ['Config Loaded',  d.config_uptime_secs != null ? fmtDuration(d.config_uptime_secs) + ' ago' : '-'],
+        ['Process RSS',    d.process_rss_kb ? fmtBytes(Number(d.process_rss_kb) * 1024) : '-'],
+        ['Load 1m',        Number(d.load_avg_1).toFixed(2)],
+        ['Memory Used',    fmtBytes(usedKb * 1024)],
+        ['Load 5m',        Number(d.load_avg_5).toFixed(2)],
+        ['Memory Free',    fmtBytes(Number(d.mem_available_kb) * 1024)],
+        ['Load 15m',       Number(d.load_avg_15).toFixed(2)],
+        ['Memory Total',   fmtBytes(Number(d.mem_total_kb) * 1024)],
+      ]);
+
+      document.getElementById('status-ts').textContent =
+        'Last updated: ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      document.getElementById('node-grid').textContent = 'Error: ' + err.message;
+    }
+  }
+
+  async function refresh() {
+    await Promise.all([fetchInfo(), fetchSysinfo()]);
+  }
+
+  var pollMs = 5000;
+  var pollGen = 0;
+
+  function schedulePoll() {
+    if (pollMs <= 0) return;
+    var gen = pollGen;
+    setTimeout(function() {
+      if (gen !== pollGen) return;
+      refresh();
+      if (gen === pollGen) schedulePoll();
+    }, pollMs);
+  }
+
+  document.getElementById('poll-select').addEventListener('change', function() {
+    pollMs = parseInt(this.value, 10);
+    pollGen++;
+    var dot = document.querySelector('.live-dot');
+    if (dot) dot.style.animationPlayState = pollMs > 0 ? 'running' : 'paused';
+    if (pollMs > 0) schedulePoll();
+  });
+
+  // ---- Reload config ----
+  async function reloadServer() {
+    if (!confirm('Reload configuration?\n\nThis will flush all stores, close and reopen all shards, and briefly pause the server. In-flight requests will be drained.\n\nWARNING: Any in-memory (mem) shards will lose ALL data.')) return;
+    var btn = document.getElementById('reload-btn');
+    var msg = document.getElementById('reload-msg');
+    btn.disabled = true;
+    msg.textContent = 'Reloading...';
+    msg.style.color = 'var(--amber)';
+    try {
+      var r = await authFetch(API_BASE + 'reload', { method: 'POST' });
+      var body = await r.json();
+      if (r.ok && body.ok) {
+        msg.textContent = 'Reload initiated. Waiting for server...';
+        // Wait for the server to come back (it pauses briefly during reload)
+        var retries = 0;
+        var ready = false;
+        while (retries < 20 && !ready) {
+          await new Promise(function(resolve) { setTimeout(resolve, 500); });
+          try {
+            var probe = await authFetch(API_BASE + 'info');
+            if (probe.ok) ready = true;
+          } catch(e) { /* server still reloading */ }
+          retries++;
+        }
+        if (ready) {
+          msg.textContent = 'Reload complete.';
+          msg.style.color = 'var(--green)';
+          refresh();
+        } else {
+          msg.textContent = 'Reload initiated but server did not respond within 10s.';
+          msg.style.color = 'var(--red)';
+        }
+      } else {
+        msg.textContent = 'Reload failed: ' + (body.error || body.message || r.status);
+        msg.style.color = 'var(--red)';
+      }
+    } catch (err) {
+      msg.textContent = 'Error: ' + err.message;
+      msg.style.color = 'var(--red)';
+    }
+    btn.disabled = false;
+    setTimeout(function() { msg.textContent = ''; }, 8000);
+  }
+
+  refresh();
+  schedulePoll();
+</script>
+<script>
+(function(){
+  var t = localStorage.getItem('objstrd-theme');
+  if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = t === 'light' ? '\u2600' : '\u263E';
+})();
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'light' ? 'dark' : 'light';
+  if (next === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('objstrd-theme', next);
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = next === 'light' ? '\u2600' : '\u263E';
+}
+</script>
+</body>
+</html>

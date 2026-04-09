@@ -1,0 +1,59 @@
+[package]
+name = "shardedobjstr"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Distributed sharded ObjectStore with replication across raw block devices"
+readme = "README.md"
+keywords = ["object-store", "sharding", "replication", "storage"]
+categories = ["filesystem", "database"]
+
+[features]
+default = ["s3-backend"]
+s3-backend = ["object_store/aws"]
+lance = ["dep:lancedb", "dep:lance-io", "dep:lance-core", "dep:arrow-array", "dep:arrow-schema", "dep:url"]
+
+[dependencies]
+rawobjstr = { path = "../rawobjstr" }
+object_store = "0.12"
+async-trait = "0.1"
+bytes = "1"
+crc32c = "0.6"
+md5 = "0.7"
+bincode = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["fs", "io-util", "rt", "rt-multi-thread", "sync", "time"] }
+futures = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+thiserror = "2"
+parking_lot = "0.12"
+rand = "0.8"
+lancedb = { version = "0.27", optional = true }
+lance-io = { version = "4.0", optional = true }
+lance-core = { version = "4.0", optional = true }
+url = { version = "2", optional = true }
+arrow-array = { version = "57", optional = true }
+arrow-schema = { version = "57", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[[bin]]
+name = "shardedobjstr"
+path = "src/bin/shardedobjstr.rs"
+
+[[bin]]
+name = "shardedobjstr-catview"
+path = "src/bin/shardedobjstr_catview.rs"
+
+[[example]]
+name = "lance_on_cluster"
+required-features = ["lance"]
+
+[[example]]
+name = "bench_lance"
+required-features = ["lance"]

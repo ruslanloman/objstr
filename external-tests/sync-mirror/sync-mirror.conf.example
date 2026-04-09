@@ -1,0 +1,15 @@
+# sync-mirror.conf -- example config for sync-mirror.sh
+#
+# Local objstrd instance (always running, developer's main endpoint)
+LOCAL_ENDPOINT=http://localhost:8001
+LOCAL_BUCKET=project-data
+
+# Remote S3 (AWS, R2, MinIO, another objstrd, etc.)
+REMOTE_ENDPOINT=https://s3.us-east-1.amazonaws.com
+REMOTE_BUCKET=my-project-data
+REMOTE_REGION=us-east-1
+
+# Sync settings
+SYNC_INTERVAL=30              # seconds between sync checks
+SYNC_DELETE=true              # mirror deletes (--delete flag)
+SYNC_DIRECTION=bidirectional  # bidirectional | push-only | pull-only

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.7"]
+build-backend = "maturin"
+
+[project]
+name = "shardedobjstr"
+version = "0.1.0"
+requires-python = ">=3.9"
+description = "Python bindings for shardedobjstr -- distributed sharded object store"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Operating System :: POSIX :: Linux",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: System :: Filesystems",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+fsspec = ["fsspec>=2023.1"]
+
+[project.entry-points."fsspec.specs"]
+shardedobjst = "shardedobjstr.fsspec_impl:ShardedFileSystem"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "shardedobjstr._shardedobjstr"

@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>objstrd - Device Visualizer</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --surface2: #21262d;
+    --border:   #30363d;
+    --text:     #c9d1d9;
+    --text-dim: #8b949e;
+    --text-hi:  #f0f6fc;
+    --accent:   #58a6ff;
+    --green:    #3fb950;
+    --amber:    #d29922;
+    --red:      #f85149;
+  }
+  [data-theme="light"] {
+    --bg:       #ffffff;
+    --surface:  #f6f8fa;
+    --surface2: #eaeef2;
+    --border:   #d0d7de;
+    --text:     #1f2328;
+    --text-dim: #656d76;
+    --text-hi:  #1f2328;
+    --accent:   #0969da;
+    --green:    #1a7f37;
+    --red:      #cf222e;
+    --amber:    #9a6700;
+  }
+  .theme-toggle { background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+  .theme-toggle:hover { color: var(--text-hi); border-color: var(--accent); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+  .site-nav { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; align-items: center; }
+  .nav-link { color: var(--text-dim); text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 6px; border: 1px solid transparent; }
+  .nav-link:hover { color: var(--text-hi); background: var(--surface2); }
+  .nav-link.active { color: var(--text-hi); background: var(--surface2); border-color: var(--border); }
+  h1 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
+  h2 { font-size: 12px; margin: 14px 0 6px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .info-bar { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+  .info-bar .stat { display: flex; gap: 4px; }
+  .info-bar .label { color: var(--text-dim); }
+  .info-bar .value { color: var(--text-hi); font-weight: 600; }
+  .legend { display: flex; gap: 16px; margin: 6px 0 12px; font-size: 12px; flex-wrap: wrap; color: var(--text-dim); }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 2px; }
+  .heatmap-container { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 4px; overflow: hidden; }
+  .heatmap-container svg { width: 100%; display: block; cursor: pointer; }
+  .heatmap-container svg rect.cell { stroke: var(--bg); stroke-width: 0.5px; transition: stroke 0.1s; }
+  .heatmap-container svg rect.cell:hover { stroke: var(--text-hi); stroke-width: 1.5px; }
+  .heatmap-container svg rect.cell.selected { stroke: var(--accent); stroke-width: 2px; }
+  .heat-stats { font-size: 12px; color: var(--text-dim); margin-top: 6px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .heat-stats span { color: var(--text-hi); }
+  .region-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 4px; display: none; }
+  .region-panel svg { width: 100%; }
+  .region-panel svg rect { stroke: var(--bg); stroke-width: 0.5px; }
+  .region-panel svg rect.ext:hover { stroke: var(--text-hi); stroke-width: 1.5px; }
+  .region-info { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .region-info span { color: var(--text-hi); }
+  .tooltip { position: fixed; pointer-events: none; z-index: 1000; background: #1c2128; border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; line-height: 1.5; box-shadow: 0 4px 12px rgba(0,0,0,.4); max-width: 500px; display: none; }
+  .tooltip .tt-key { color: var(--accent); font-weight: 600; word-break: break-all; }
+  .tooltip .tt-row { color: var(--text-dim); }
+  .tooltip .tt-val { color: var(--text-hi); }
+  .status-bar { font-size: 11px; color: var(--text-dim); margin-top: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 5px; vertical-align: middle; animation: live-pulse 2s infinite; }
+  @keyframes live-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(63,185,80,.6); }
+    70%  { box-shadow: 0 0 0 6px rgba(63,185,80,0);  }
+    100% { box-shadow: 0 0 0 0   rgba(63,185,80,0);  }
+  }
+  .device-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; background: var(--bg); }
+  .device-card-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .device-card-hdr h2 { margin: 0; font-size: 14px; color: var(--text-hi); text-transform: none; letter-spacing: 0; }
+  .viz-btn { padding: 3px 12px; font-size: 11px; font-family: inherit; background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 4px; cursor: pointer; }
+  .viz-btn:hover { border-color: var(--accent); color: var(--text); }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <span id="nav-node-name" style="font-size:13px;font-weight:600;color:var(--text-hi);padding:5px 12px;display:none"></span>
+  <a href="/_admin/" class="nav-link">Cluster</a>
+  <a href="/_admin/viz" class="nav-link active" id="nav-viz">Visualizer</a>
+  <a href="/_admin/ui" class="nav-link">Manager</a>
+  <a href="/_admin/server" class="nav-link">Server Info</a>
+  <a href="/_admin/logs/ui" class="nav-link">Logs</a>
+  <a href="/_admin/config" class="nav-link">Config</a>
+  <span id="nav-ro-badge" style="display:none;margin-left:auto;font-size:11px;font-weight:600;color:var(--amber);background:rgba(210,153,34,0.12);padding:2px 8px;border-radius:10px">READ-ONLY</span>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:4px">
+    <label for="poll-select" style="font-size:11px;color:var(--text-dim)">Poll:</label>
+    <select id="poll-select" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:11px;font-family:inherit">
+      <option value="2000">2s</option>
+      <option value="5000" selected>5s</option>
+      <option value="30000">30s</option>
+      <option value="120000">2 min</option>
+      <option value="900000">15 min</option>
+      <option value="0">None</option>
+    </select>
+  </span>
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark">&#9790;</button>
+</nav>
+
+<h1 id="page-title">Device Visualizer</h1>
+
+<div id="non-raw-msg" style="display:none;text-align:center;padding:60px 20px">
+  <div style="font-size:48px;margin-bottom:16px">&#x1f50d;</div>
+  <div style="font-size:16px;color:var(--text-hi);margin-bottom:8px">Device Visualizer Not Available</div>
+  <div style="font-size:13px;color:var(--text-dim);max-width:480px;margin:0 auto">
+    The device visualizer shows block-level heatmaps and region details for raw store backends.
+    This server is using a non-raw backend, so device-level visualization is not available.
+    Use the <a href="/_admin/ui" style="color:var(--accent)">Object Manager</a> to browse objects.
+  </div>
+</div>
+
+<div id="raw-content">
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#21262d; border:1px solid #444c56"></div> Empty / free</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#1a3a5c"></div> Low density</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#58a6ff"></div> Medium</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#ff6b35"></div> Full</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#444c56; border:1px solid #666"></div> Dead / tombstoned</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#3fb950"></div> Index region</div>
+</div>
+
+<div id="devices-host"></div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="status-bar">
+  <span><span class="live-dot"></span><span id="status-msg">Connecting...</span></span>
+  <span style="color:var(--text-dim);font-size:10px">build: __BUILD_INFO__</span>
+</div>
+</div><!-- /raw-content -->
+
+<script>
+'use strict';
+// Admin token support: pass ?token=YOUR_TOKEN in the URL
+var _adminToken = new URLSearchParams(location.search).get('token');
+var authFetch = function(url, opts) {
+  if (_adminToken) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'Authorization': 'Bearer ' + _adminToken }, opts.headers || {});
+  }
+  return fetch(url, opts);
+};
+// Detect per-shard context from URL path
+var _shardMatch = location.pathname.match(/^\/\_admin\/shard\/(\d+)\//);
+var API_BASE = _shardMatch ? '/_admin/shard/' + _shardMatch[1] + '/' : '/_admin/';
+var IS_SHARD = !!_shardMatch;
+
+var pollMs = 5000;
+var pollGen = 0;
+var CHUNKS = 512;
+var tooltip = document.getElementById('tooltip');
+var panels = [];
+
+// -- Helpers -------------------------------------------------------
+
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1024*1024*1024) return (b/(1024*1024)).toFixed(1) + ' MB';
+  return (b/(1024*1024*1024)).toFixed(2) + ' GB';
+}
+function fmtHex(n) { return '0x' + n.toString(16).toUpperCase(); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function densityColor(t) {
+  if (t <= 0) return '#21262d';
+  t = Math.min(1, t);
+  if (t < 0.5) {
+    var u = t / 0.5;
+    return 'rgb(' + Math.round(26+u*62) + ',' + Math.round(58+u*108) + ',' + Math.round(92+u*163) + ')';
+  } else {
+    var u = (t - 0.5) / 0.5;
+    return 'rgb(' + Math.round(88+u*167) + ',' + Math.round(166-u*59) + ',' + Math.round(255-u*202) + ')';
+  }
+}
+
+function keyColor(key) {
+  var h = 0;
+  for (var i = 0; i < key.length; i++) h = key.charCodeAt(i) + ((h << 5) - h);
+  var hue = ((h % 360) + 360) % 360;
+  var r = Math.round(128 + 80 * Math.cos(hue * Math.PI / 180));
+  var g = Math.round(128 + 80 * Math.cos((hue - 120) * Math.PI / 180));
+  var b = Math.round(128 + 80 * Math.cos((hue - 240) * Math.PI / 180));
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+function showTooltip(e, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+  moveTooltip(e);
+}
+function extentTooltipHtml(d) {
+  var html = '<div class="tt-key">' + escHtml(d.key) + '</div>';
+  if (d.uncompressed_size && d.uncompressed_size > 0) {
+    var ratio = ((1 - d.size / d.uncompressed_size) * 100).toFixed(1);
+    html += '<div class="tt-row">Logical size: <span class="tt-val">' + fmtBytes(d.uncompressed_size) + '</span></div>';
+    html += '<div class="tt-row">Compressed: <span class="tt-val">' + fmtBytes(d.size) + '</span> <span style="color:#3fb950">(' + ratio + '% saved)</span></div>';
+  } else {
+    html += '<div class="tt-row">Size: <span class="tt-val">' + fmtBytes(d.size) + '</span></div>';
+  }
+  html += '<div class="tt-row">On-disk: <span class="tt-val">' + fmtBytes(d.padded_size) + '</span></div>'
+    + '<div class="tt-row">Offset: <span class="tt-val">' + fmtHex(d.offset) + '</span></div>'
+    + '<div class="tt-row">TXN: <span class="tt-val">' + d.created_txn + '</span></div>'
+    + '<div class="tt-row">Modified: <span class="tt-val">' + d.last_modified + '</span></div>';
+  return html;
+}
+function moveTooltip(e) {
+  var x = e.clientX + 14, y = e.clientY + 14;
+  if (x + tooltip.offsetWidth > window.innerWidth - 8) x = e.clientX - tooltip.offsetWidth - 8;
+  if (y + tooltip.offsetHeight > window.innerHeight - 8) y = e.clientY - tooltip.offsetHeight - 8;
+  tooltip.style.left = x + 'px'; tooltip.style.top = y + 'px';
+}
+function hideTooltip() { tooltip.style.display = 'none'; }
+
+// -- Panel creation ------------------------------------------------
+
+function createPanel(shardId, shardName, apiBase) {
+  var p = {
+    shardId: shardId, shardName: shardName, apiBase: apiBase,
+    lastTxnId: null, heatData: null,
+    selectedStart: -1, selectedEnd: -1,
+    el: {}
+  };
+
+  var card = document.createElement('div');
+  card.className = 'device-card';
+
+  // Header with buttons
+  var hdr = document.createElement('div');
+  hdr.className = 'device-card-hdr';
+  var h = document.createElement('h2');
+  h.textContent = shardName;
+  hdr.appendChild(h);
+  card.appendChild(hdr);
+
+  // Info bar
+  var infoBar = document.createElement('div');
+  infoBar.className = 'info-bar';
+  var statDefs = [
+    ['Device','device'],['Size','size'],['Files','files'],['Used','used'],
+    ['Free','free'],['Dead','dead'],['Fragments','frags'],['TXN','txn'],
+    ['PID','pid'],['Port','port'],['Index','index'],['Largest free','largest'],
+    ['Compression','compression']
+  ];
+  infoBar.innerHTML = statDefs.map(function(d) {
+    return '<div class="stat"><span class="label">' + d[0] + ':</span> <span class="value stat-' + d[1] + '">-</span></div>';
+  }).join('');
+  card.appendChild(infoBar);
+  statDefs.forEach(function(d) { p.el['stat_' + d[1]] = infoBar.querySelector('.stat-' + d[1]); });
+
+  // Heatmap heading
+  var hmH = document.createElement('h2');
+  hmH.innerHTML = 'Device Heat Map <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">(click a cell or shift-click to select a range)</span>';
+  card.appendChild(hmH);
+
+  // Heatmap container
+  var hmC = document.createElement('div');
+  hmC.className = 'heatmap-container';
+  var hmSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  hmC.appendChild(hmSvg);
+  var hmStats = document.createElement('div');
+  hmStats.className = 'heat-stats';
+  hmStats.innerHTML = '<span>Chunks: <span class="dh-chunks">-</span></span>'
+    + '<span>Chunk size: <span class="dh-chunksize">-</span></span>'
+    + '<span>Hottest: <span class="dh-hottest">-</span></span>'
+    + '<span>Selection: <span class="dh-selection">none</span></span>';
+  hmC.appendChild(hmStats);
+  card.appendChild(hmC);
+  p.el.hmContainer = hmC; p.el.hmSvg = hmSvg;
+  p.el.dhChunks = hmStats.querySelector('.dh-chunks');
+  p.el.dhChunksize = hmStats.querySelector('.dh-chunksize');
+  p.el.dhHottest = hmStats.querySelector('.dh-hottest');
+  p.el.dhSelection = hmStats.querySelector('.dh-selection');
+
+  // Region heading
+  var regH = document.createElement('h2');
+  regH.innerHTML = 'Region Detail <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-dim)">(select a chunk above to view)</span>';
+  card.appendChild(regH);
+
+  // Region panel
+  var regP = document.createElement('div');
+  regP.className = 'region-panel';
+  var regInfo = document.createElement('div');
+  regInfo.className = 'region-info';
+  regP.appendChild(regInfo);
+  var regBar = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  regP.appendChild(regBar);
+  card.appendChild(regP);
+  p.el.regionPanel = regP; p.el.regionInfo = regInfo; p.el.regionBar = regBar;
+
+  // Index shard fill heading
+  var ixH = document.createElement('h2');
+  ixH.textContent = 'Index Shard Fill';
+  card.appendChild(ixH);
+  p.el.indexHeading = ixH;
+
+  // Index heatmap container
+  var ixC = document.createElement('div');
+  ixC.className = 'heatmap-container';
+  var ixSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  ixC.appendChild(ixSvg);
+  var ixStats = document.createElement('div');
+  ixStats.className = 'heat-stats';
+  ixStats.innerHTML = '<span>Top shard: <span class="ix-top-shard">-</span></span>'
+    + '<span>Max fill: <span class="ix-top-fill">-</span></span>'
+    + '<span>Avg fill: <span class="ix-avg-fill">-</span></span>'
+    + '<span>Non-empty: <span class="ix-nonempty">-</span></span>';
+  ixC.appendChild(ixStats);
+  card.appendChild(ixC);
+  p.el.ixContainer = ixC; p.el.ixSvg = ixSvg;
+  p.el.ixTopShard = ixStats.querySelector('.ix-top-shard');
+  p.el.ixTopFill = ixStats.querySelector('.ix-top-fill');
+  p.el.ixAvgFill = ixStats.querySelector('.ix-avg-fill');
+  p.el.ixNonempty = ixStats.querySelector('.ix-nonempty');
+
+  document.getElementById('devices-host').appendChild(card);
+  p.el.card = card;
+  panels.push(p);
+  return p;
+}
+
+function createOfflinePanel(shardId, shardName) {
+  var card = document.createElement('div');
+  card.className = 'device-card';
+  card.style.opacity = '0.55';
+  card.style.borderStyle = 'dashed';
+  card.style.borderColor = 'var(--red, #da3633)';
+  var hdr = document.createElement('div');
+  hdr.className = 'device-card-hdr';
+  var h = document.createElement('h2');
+  h.innerHTML = escHtml(shardName) + ' <span style="color:#da3633;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(218,54,51,0.12)">OFFLINE</span>';
+  hdr.appendChild(h);
+  card.appendChild(hdr);
+  var msg = document.createElement('div');
+  msg.style.cssText = 'padding:24px;text-align:center;color:var(--text-dim);font-size:13px';
+  msg.textContent = 'This shard is offline. Heatmap and stats are unavailable until the device is reattached.';
+  card.appendChild(msg);
+  document.getElementById('devices-host').appendChild(card);
+}
+
+// -- Rendering (per-panel) -----------------------------------------
+
+function renderDeviceHeatMap(p, data) {
+  p.heatData = data;
+  var totalWidth = p.el.hmContainer.clientWidth - 20;
+  if (totalWidth < 100) return;
+
+  var N = data.chunks;
+  var COLS = 64, GAP = 1;
+  var ROWS = Math.ceil(N / COLS);
+  var CELL = Math.max(2, Math.floor((totalWidth - COLS * GAP) / COLS));
+  var svgEl = p.el.hmSvg;
+  svgEl.setAttribute('width', COLS * (CELL + GAP));
+  svgEl.setAttribute('height', ROWS * (CELL + GAP));
+  while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+
+  var chunkSize = data.chunk_size;
+  var idxA = data.index_region_a;
+  var dataStart = data.data_region_start;
+  var hottestIdx = 0, hottestCount = 0;
+
+  for (var i = 0; i < N; i++) {
+    var col = i % COLS;
+    var row = Math.floor(i / COLS);
+    var x = col * (CELL + GAP);
+    var y = row * (CELL + GAP);
+    var cStart = i * chunkSize;
+    var cEnd = cStart + chunkSize;
+
+    var isIndex = (idxA != null && cStart >= idxA);
+    var isPreData = cStart < dataStart;
+    var fill;
+
+    if (isIndex) {
+      fill = '#3fb950';
+    } else if (isPreData) {
+      fill = '#d29922';
+    } else {
+      var fc = data.file_counts[i] || 0;
+      var ub = data.used_bytes[i] || 0;
+      var db = data.dead_bytes[i] || 0;
+      if (fc > hottestCount) { hottestCount = fc; hottestIdx = i; }
+      if (db > chunkSize * 0.5 && ub === 0) fill = '#444c56';
+      else fill = densityColor(ub / chunkSize);
+    }
+
+    var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', x); rect.setAttribute('y', y);
+    rect.setAttribute('width', CELL); rect.setAttribute('height', CELL);
+    rect.setAttribute('rx', 1); rect.setAttribute('fill', fill);
+    rect.setAttribute('class', 'cell'); rect.setAttribute('data-idx', i);
+    if (i >= p.selectedStart && i <= p.selectedEnd) rect.classList.add('selected');
+
+    var fc2 = data.file_counts[i] || 0;
+    var ub2 = data.used_bytes[i] || 0;
+    var fb2 = data.free_bytes[i] || 0;
+    var db2 = data.dead_bytes[i] || 0;
+    (function(idx, cS, cE, files, used, free, dead) {
+      rect.addEventListener('mouseover', function(e) {
+        var pct = chunkSize > 0 ? (used / chunkSize * 100).toFixed(1) : '0.0';
+        showTooltip(e,
+          '<div class="tt-key">Chunk ' + idx + '</div>'
+          + '<div class="tt-row">Range: <span class="tt-val">' + fmtHex(cS) + ' - ' + fmtHex(cE) + '</span></div>'
+          + '<div class="tt-row">Files: <span class="tt-val">' + files + '</span></div>'
+          + '<div class="tt-row">Used: <span class="tt-val">' + fmtBytes(used) + ' (' + pct + '%)</span></div>'
+          + '<div class="tt-row">Free: <span class="tt-val">' + fmtBytes(free) + '</span></div>'
+          + (dead > 0 ? '<div class="tt-row">Dead: <span class="tt-val">' + fmtBytes(dead) + '</span></div>' : '')
+        );
+      });
+      rect.addEventListener('mousemove', moveTooltip);
+      rect.addEventListener('mouseout', hideTooltip);
+    })(i, cStart, cEnd, fc2, ub2, fb2, db2);
+    (function(panel, idx) {
+      rect.addEventListener('click', function(ev) { onCellClick(panel, idx, ev.shiftKey); });
+    })(p, i);
+    svgEl.appendChild(rect);
+  }
+
+  p.el.dhChunks.textContent = N;
+  p.el.dhChunksize.textContent = fmtBytes(chunkSize);
+  p.el.dhHottest.textContent = '#' + hottestIdx + ' (' + hottestCount + ' files)';
+}
+
+function onCellClick(p, idx, shift) {
+  if (shift && p.selectedStart >= 0) {
+    p.selectedEnd = Math.max(p.selectedStart, idx);
+    p.selectedStart = Math.min(p.selectedStart, idx);
+  } else {
+    p.selectedStart = idx; p.selectedEnd = idx;
+  }
+  p.el.hmSvg.querySelectorAll('rect.cell').forEach(function(r) {
+    var i = parseInt(r.getAttribute('data-idx'));
+    r.classList.toggle('selected', i >= p.selectedStart && i <= p.selectedEnd);
+  });
+  var cs = p.heatData.chunk_size;
+  p.el.dhSelection.textContent =
+    p.selectedStart === p.selectedEnd
+      ? 'chunk ' + p.selectedStart + ' (' + fmtHex(p.selectedStart * cs) + ')'
+      : 'chunks ' + p.selectedStart + '-' + p.selectedEnd + ' (' + fmtBytes((p.selectedEnd - p.selectedStart + 1) * cs) + ')';
+  loadRegionDetail(p);
+}
+
+function loadRegionDetail(p) {
+  if (!p.heatData || p.selectedStart < 0) return;
+  var cs = p.heatData.chunk_size;
+  var from = p.selectedStart * cs;
+  var to = (p.selectedEnd + 1) * cs;
+  p.el.regionPanel.style.display = 'block';
+  p.el.regionInfo.innerHTML =
+    'Region: <span>' + fmtHex(from) + '</span> - <span>' + fmtHex(to) + '</span> &nbsp; (<span>' + fmtBytes(to - from) + '</span>) &nbsp; Loading...';
+  authFetch(p.apiBase + 'region?from=' + from + '&to=' + to)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var nf = d.extents.length;
+      var nfr = d.free_regions.length;
+      p.el.regionInfo.innerHTML =
+        'Region: <span>' + fmtHex(from) + '</span> - <span>' + fmtHex(to) + '</span> &nbsp; (<span>' + fmtBytes(to - from) + '</span>) &nbsp; <span>' + nf + '</span> files, <span>' + nfr + '</span> free regions';
+      renderRegionBar(p, d, from, to);
+    })
+    .catch(function() {
+      p.el.regionInfo.innerHTML += ' &nbsp; <span style="color:#f85149">Error</span>';
+    });
+}
+
+function renderRegionBar(p, data, from, to) {
+  var svgEl = p.el.regionBar;
+  var totalWidth = p.el.regionPanel.clientWidth - 20;
+  var regionSize = to - from;
+  if (totalWidth < 100 || regionSize <= 0) return;
+
+  var ROW_H = 20;
+  var ROWS = Math.min(12, Math.max(4, Math.ceil(data.extents.length / 30)));
+  var bytesPerRow = regionSize / ROWS;
+  svgEl.setAttribute('width', totalWidth);
+  svgEl.setAttribute('height', ROWS * (ROW_H + 1) + 1);
+  while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+
+  var segments = [];
+  for (var ei = 0; ei < data.extents.length; ei++) {
+    var ext = data.extents[ei];
+    segments.push({ type: 'extent', offset: ext.offset, size: ext.padded_size, data: ext });
+  }
+  for (var fi = 0; fi < data.free_regions.length; fi++) {
+    var fr = data.free_regions[fi];
+    segments.push({ type: 'free', offset: fr.offset, size: fr.size });
+  }
+
+  // dead gaps
+  var sorted = segments.slice().sort(function(a, b) { return a.offset - b.offset; });
+  var cursor = from;
+  for (var si = 0; si < sorted.length; si++) {
+    var ss = Math.max(sorted[si].offset, from);
+    if (ss > cursor) segments.push({ type: 'dead', offset: cursor, size: ss - cursor });
+    cursor = Math.max(cursor, Math.min(sorted[si].offset + sorted[si].size, to));
+  }
+  if (cursor < to) segments.push({ type: 'dead', offset: cursor, size: to - cursor });
+  segments.sort(function(a, b) { return a.offset - b.offset; });
+
+  for (var j = 0; j < segments.length; j++) {
+    var seg = segments[j];
+    var segS = Math.max(seg.offset, from);
+    var segE = Math.min(seg.offset + seg.size, to);
+    if (segS >= segE) continue;
+    var relS = segS - from, relE = segE - from;
+    var r0 = Math.floor(relS / bytesPerRow);
+    var r1 = Math.floor(Math.max(0, relE - 1) / bytesPerRow);
+
+    for (var r = r0; r <= r1 && r < ROWS; r++) {
+      var rbs = r * bytesPerRow, rbe = (r+1) * bytesPerRow;
+      var os = Math.max(relS, rbs), oe = Math.min(relE, rbe);
+      var rx = ((os - rbs) / bytesPerRow) * totalWidth;
+      var rw = Math.max(1, ((oe - os) / bytesPerRow) * totalWidth);
+      var ry = r * (ROW_H + 1) + 1;
+
+      var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', rx); rect.setAttribute('y', ry);
+      rect.setAttribute('width', rw); rect.setAttribute('height', ROW_H);
+      rect.setAttribute('rx', 1);
+
+      if (seg.type === 'free') {
+        rect.setAttribute('fill', '#21262d');
+        var t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        t.textContent = 'Free: ' + fmtBytes(seg.size) + ' @ ' + fmtHex(seg.offset);
+        rect.appendChild(t);
+      } else if (seg.type === 'dead') {
+        rect.setAttribute('fill', '#444c56');
+        var t2 = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        t2.textContent = 'Dead: ' + fmtBytes(seg.size) + ' @ ' + fmtHex(seg.offset);
+        rect.appendChild(t2);
+      } else {
+        rect.setAttribute('fill', keyColor(seg.data.key));
+        rect.setAttribute('class', 'ext');
+        rect.style.cursor = 'pointer';
+        (function(d) {
+          rect.addEventListener('mouseover', function(e) { showTooltip(e, extentTooltipHtml(d)); });
+        })(seg.data);
+        rect.addEventListener('mousemove', moveTooltip);
+        rect.addEventListener('mouseout', hideTooltip);
+      }
+      svgEl.appendChild(rect);
+    }
+  }
+}
+
+function renderIndexHeatMap(p, shardSizes, slotSize) {
+  var svgEl = p.el.ixSvg;
+  var totalWidth = p.el.ixContainer.clientWidth - 20;
+  if (totalWidth < 100 || !shardSizes || shardSizes.length === 0) return;
+
+  var N = shardSizes.length;
+  var COLS = 64, GAP = 1;
+  var ROWS = Math.ceil(N / COLS);
+  var CELL = Math.max(2, Math.floor((totalWidth - COLS * GAP) / COLS));
+  svgEl.setAttribute('width', COLS * (CELL + GAP));
+  svgEl.setAttribute('height', ROWS * (CELL + GAP));
+  while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+
+  var maxFill = slotSize > 0 ? slotSize : 1;
+  var topIdx = 0, topSize = 0, sumFill = 0, nonEmpty = 0;
+
+  for (var i = 0; i < N; i++) {
+    var sz = shardSizes[i] || 0;
+    if (sz > topSize) { topSize = sz; topIdx = i; }
+    sumFill += sz / maxFill;
+    if (sz > 0) nonEmpty++;
+
+    var col = i % COLS;
+    var row = Math.floor(i / COLS);
+    var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', col * (CELL + GAP));
+    rect.setAttribute('y', row * (CELL + GAP));
+    rect.setAttribute('width', CELL); rect.setAttribute('height', CELL);
+    rect.setAttribute('rx', 1);
+    rect.setAttribute('fill', densityColor(sz / maxFill));
+    rect.setAttribute('class', 'cell');
+    (function(idx, size, cap) {
+      rect.addEventListener('mouseover', function(e) {
+        var pct = cap > 0 ? (size / cap * 100).toFixed(1) : '0.0';
+        showTooltip(e,
+          '<div class="tt-key">Shard #' + idx + ' (0x' + idx.toString(16).toUpperCase().padStart(2,'0') + ')</div>'
+          + '<div class="tt-row">Fill: <span class="tt-val">' + fmtBytes(size) + ' / ' + fmtBytes(cap) + ' (' + pct + '%)</span></div>'
+          + '<div class="tt-row">Status: <span class="tt-val">' + (size === 0 ? 'Empty' : pct >= 90 ? 'Near full' : 'Active') + '</span></div>'
+        );
+      });
+      rect.addEventListener('mousemove', moveTooltip);
+      rect.addEventListener('mouseout', hideTooltip);
+    })(i, sz, maxFill);
+    svgEl.appendChild(rect);
+  }
+
+  p.el.ixTopShard.textContent = '#' + topIdx + ' (0x' + topIdx.toString(16).toUpperCase().padStart(2,'0') + ')';
+  p.el.ixTopFill.textContent  = fmtBytes(topSize) + ' / ' + fmtBytes(maxFill) + ' (' + (topSize/maxFill*100).toFixed(1) + '%)';
+  p.el.ixAvgFill.textContent  = (sumFill/N*100).toFixed(2) + '%';
+  p.el.ixNonempty.textContent  = nonEmpty + ' / ' + N;
+  p.el.indexHeading.textContent = 'Index Shard Fill (active copy, ' + N + ' shards)';
+}
+
+// -- Polling (per-panel) -------------------------------------------
+
+function pollHeatmap(p) {
+  return authFetch(p.apiBase + 'heatmap?chunks=' + CHUNKS)
+    .then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(data) {
+      if (data.txn_id !== p.lastTxnId) {
+        p.lastTxnId = data.txn_id;
+        renderDeviceHeatMap(p, data);
+        var totalUsed = data.used_bytes.reduce(function(s,v){return s+v;}, 0);
+        var totalFree = data.free_bytes.reduce(function(s,v){return s+v;}, 0);
+        var totalDead = data.dead_bytes.reduce(function(s,v){return s+v;}, 0);
+        var dataSize = data.data_region_end - data.data_region_start;
+        p.el.stat_size.textContent = fmtBytes(data.device_size);
+        p.el.stat_files.textContent = data.total_extents;
+        p.el.stat_used.textContent = fmtBytes(totalUsed) + ' (' + (dataSize > 0 ? (100*totalUsed/dataSize).toFixed(1) : 0) + '%)';
+        p.el.stat_free.textContent = fmtBytes(totalFree);
+        p.el.stat_dead.textContent = totalDead > 0 ? fmtBytes(totalDead) : '0 B';
+        p.el.stat_frags.textContent = data.total_free_regions;
+        p.el.stat_txn.textContent = data.txn_id;
+        if (p.selectedStart >= 0) loadRegionDetail(p);
+      }
+      return data.txn_id;
+    });
+}
+
+function pollInfo(p) {
+  return authFetch(p.apiBase + 'info')
+    .then(function(r) { if (!r.ok) throw new Error(''); return r.json(); })
+    .then(function(d) {
+      p.el.stat_device.textContent = d.device_path || d.backend;
+      p.el.stat_pid.textContent = d.pid;
+      p.el.stat_port.textContent = d.port;
+      if (d.index_serialized_bytes != null)
+        p.el.stat_index.textContent = fmtBytes(d.index_serialized_bytes);
+      if (d.largest_free_extent != null)
+        p.el.stat_largest.textContent = fmtBytes(d.largest_free_extent);
+      if (d.compression != null)
+        p.el.stat_compression.textContent = d.compression;
+      if (d.shard_sizes && d.shard_slot_size)
+        renderIndexHeatMap(p, d.shard_sizes, d.shard_slot_size);
+    })
+    .catch(function() {});
+}
+
+// -- Scheduling (all panels) ---------------------------------------
+
+function scheduleAllHeatmaps() {
+  if (pollMs <= 0) return;
+  var gen = pollGen;
+  setTimeout(function() {
+    if (gen !== pollGen) return;
+    var statusEl = document.getElementById('status-msg');
+    Promise.all(panels.map(function(p) { return pollHeatmap(p); }))
+      .then(function(txns) {
+        var txnStr = txns.filter(Boolean).join(', ');
+        statusEl.textContent = 'Last update: ' + new Date().toLocaleTimeString() + (txnStr ? ' (txn ' + txnStr + ')' : '');
+      })
+      .catch(function(err) { statusEl.textContent = 'Error: ' + err.message; });
+    if (gen === pollGen) scheduleAllHeatmaps();
+  }, pollMs);
+}
+
+function scheduleAllInfo() {
+  if (pollMs <= 0) return;
+  var ms = Math.max(pollMs, 10000);
+  var gen = pollGen;
+  setTimeout(function() {
+    if (gen !== pollGen) return;
+    panels.forEach(function(p) { pollInfo(p); });
+    if (gen === pollGen) scheduleAllInfo();
+  }, ms);
+}
+
+// -- Init ----------------------------------------------------------
+
+(function init() {
+  var statusEl = document.getElementById('status-msg');
+  var titleEl = document.getElementById('page-title');
+
+  // If we are on a per-shard URL, just create one panel for that shard
+  if (IS_SHARD) {
+    var p = createPanel(parseInt(_shardMatch[1]), 'Device', API_BASE);
+    pollHeatmap(p).then(function() { statusEl.textContent = 'Connected'; }).catch(function() {});
+    pollInfo(p);
+    scheduleAllHeatmaps();
+    scheduleAllInfo();
+    return;
+  }
+
+  // Check if multi-shard
+  authFetch('/_admin/info')
+    .then(function(r) { return r.json(); })
+    .then(function(info) {
+      // Update title based on backend type
+      var hasRaw = info.has_raw !== false;
+      titleEl.textContent = 'Device Visualizer';
+      document.title = 'objstrd - Device Visualizer';
+
+      // Update nav: node name, read-only badge, hide viz if no raw
+      if (info.node_name) {
+        var nn = document.getElementById('nav-node-name');
+        if (nn) { nn.textContent = info.node_name; nn.style.display = ''; }
+      }
+      if (info.read_only) {
+        var ro = document.getElementById('nav-ro-badge');
+        if (ro) ro.style.display = '';
+      }
+
+      // If no raw backend, show the non-raw message instead of heatmaps
+      if (!hasRaw) {
+        document.getElementById('raw-content').style.display = 'none';
+        document.getElementById('non-raw-msg').style.display = 'block';
+        return;
+      }
+
+      if (info.shard_count > 1) {
+        // Multi-shard: fetch shard list and create a panel per raw shard
+        return authFetch('/_admin/shards').then(function(r) { return r.json(); }).then(function(sd) {
+          var rawShards = sd.shards.filter(function(s) { return s.type === 'raw'; });
+          var offlineShards = sd.shards.filter(function(s) { return s.health && s.health.toLowerCase() === 'offline'; });
+          if (rawShards.length === 0 && offlineShards.length === 0) {
+            // No raw shards, single fallback
+            var p = createPanel(0, info.device_path || 'Device', API_BASE);
+            pollHeatmap(p); pollInfo(p);
+          } else {
+            // Show live raw shards
+            rawShards.forEach(function(s) {
+              var base = '/_admin/shard/' + s.id + '/';
+              var p = createPanel(s.id, s.name || ('shard-' + s.id), base);
+              pollHeatmap(p); pollInfo(p);
+            });
+            // Show offline shards that aren't already shown as raw
+            var rawIds = {};
+            rawShards.forEach(function(s) { rawIds[s.id] = true; });
+            offlineShards.forEach(function(s) {
+              if (rawIds[s.id]) return;
+              createOfflinePanel(s.id, s.name || ('shard-' + s.id));
+            });
+          }
+          scheduleAllHeatmaps();
+          scheduleAllInfo();
+        });
+      } else {
+        // Single shard
+        var p = createPanel(0, info.device_path || 'Device', API_BASE);
+        pollHeatmap(p); pollInfo(p);
+        scheduleAllHeatmaps();
+        scheduleAllInfo();
+      }
+    })
+    .catch(function(err) {
+      statusEl.textContent = 'Error: ' + err.message;
+      // Fallback: create single panel
+      var p = createPanel(0, 'Device', API_BASE);
+      pollHeatmap(p); pollInfo(p);
+      scheduleAllHeatmaps();
+      scheduleAllInfo();
+    });
+})();
+
+document.getElementById('poll-select').addEventListener('change', function() {
+  pollMs = parseInt(this.value) || 0;
+  pollGen++;
+  var dot = document.querySelector('.live-dot');
+  if (pollMs === 0) {
+    dot.style.background = 'var(--amber)';
+    dot.style.animation = 'none';
+    document.getElementById('status-msg').textContent = 'Polling paused';
+  } else {
+    dot.style.background = 'var(--green)';
+    dot.style.animation = 'live-pulse 2s infinite';
+    scheduleAllHeatmaps();
+    scheduleAllInfo();
+  }
+});
+
+var resizeTimer;
+window.addEventListener('resize', function() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(function() {
+    panels.forEach(function(p) { p.lastTxnId = null; pollHeatmap(p); });
+  }, 200);
+});
+</script>
+<script>
+(function(){
+  var t = localStorage.getItem('objstrd-theme');
+  if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = t === 'light' ? '\u2600' : '\u263E';
+})();
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'light' ? 'dark' : 'light';
+  if (next === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('objstrd-theme', next);
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = next === 'light' ? '\u2600' : '\u263E';
+}
+</script>
+</body>
+</html>

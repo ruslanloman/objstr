@@ -1,0 +1,12 @@
+# Build artifacts
+target/
+*.so
+*.pyd
+*.dll
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl

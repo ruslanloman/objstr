@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "rawobjstr",
+    "rawobjstr/python",
+    "shardedobjstr",
+    "shardedobjstr/python",
+    "objstrd",
+]
+resolver = "2"
+
+[workspace.package]
+license = "MIT"
+repository = "https://github.com/sysadminmike/objstr"
+edition = "2021"

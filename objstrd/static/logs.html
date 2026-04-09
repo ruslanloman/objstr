@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>System Logs</title>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #21262d;
+      --border:   #30363d;
+      --text:     #c9d1d9;
+      --text-dim: #8b949e;
+      --text-hi:  #f0f6fc;
+      --accent:   #58a6ff;
+      --green:    #3fb950;
+      --red:      #da3633;
+      --amber:    #d29922;
+    }
+    [data-theme="light"] {
+      --bg:       #ffffff;
+      --surface:  #f6f8fa;
+      --surface2: #eaeef2;
+      --border:   #d0d7de;
+      --text:     #1f2328;
+      --text-dim: #656d76;
+      --text-hi:  #1f2328;
+      --accent:   #0969da;
+      --green:    #1a7f37;
+      --red:      #cf222e;
+      --amber:    #9a6700;
+    }
+    .theme-toggle { background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+    .theme-toggle:hover { color: var(--text-hi); border-color: var(--accent); }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+    .site-nav { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; align-items: center; }
+    .nav-link { color: var(--text-dim); text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 6px; border: 1px solid transparent; }
+    .nav-link:hover { color: var(--text-hi); background: var(--surface2); }
+    .nav-link.active { color: var(--text-hi); background: var(--surface2); border-color: var(--border); }
+    h1 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
+    .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .controls select, .controls input, .controls button {
+      font-family: inherit; font-size: 12px; background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px;
+    }
+    .controls select:focus, .controls input:focus { outline: none; border-color: var(--accent); }
+    .controls button { cursor: pointer; background: var(--surface2); color: var(--text-hi); }
+    .controls button:hover { border-color: var(--accent); }
+    .controls button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .controls label { font-size: 12px; color: var(--text-dim); }
+    .controls .search-box { min-width: 180px; }
+    .status-bar { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
+    .log-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .log-table th {
+      text-align: left; padding: 6px 10px; background: var(--surface2);
+      color: var(--text-dim); font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.5px; font-size: 11px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 1;
+    }
+    .log-table td { padding: 5px 10px; border-bottom: 1px solid var(--surface2); vertical-align: top; white-space: nowrap; }
+    .log-table td.msg { white-space: normal; word-break: break-all; max-width: 800px; }
+    .log-table tr:hover { background: var(--surface); }
+    .pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+    .pill-info { background: #1a3a2a; color: var(--green); }
+    .pill-warn { background: #3a2a10; color: var(--amber); }
+    .pill-error { background: #3a1a1a; color: var(--red); }
+    .pill-debug { background: #1a2a3a; color: var(--accent); }
+    .pill-svc { background: var(--surface2); color: var(--text-dim); }
+    .pill-cat { background: var(--surface2); color: var(--accent); }
+    .log-wrap { max-height: calc(100vh - 200px); overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+  </style>
+</head>
+<body>
+  <nav class="site-nav">
+    <span id="nav-node-name" style="font-size:13px;font-weight:600;color:var(--text-hi);padding:5px 12px;display:none"></span>
+    <a href="/_admin/" class="nav-link">Cluster</a>
+    <a href="/_admin/viz" class="nav-link" id="nav-viz">Visualizer</a>
+    <a href="/_admin/ui" class="nav-link">Manager</a>
+    <a href="/_admin/server" class="nav-link">Server Info</a>
+    <a href="/_admin/logs/ui" class="nav-link active">Logs</a>
+    <a href="/_admin/config" class="nav-link">Config</a>
+    <span id="nav-ro-badge" style="display:none;margin-left:auto;font-size:11px;font-weight:600;color:var(--amber);background:rgba(210,153,34,0.12);padding:2px 8px;border-radius:10px">READ-ONLY</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:4px">
+      <label for="poll-select" style="font-size:11px;color:var(--text-dim)">Poll:</label>
+      <select id="poll-select" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:11px;font-family:inherit">
+        <option value="0" selected>None</option>
+        <option value="2000">2s</option>
+        <option value="5000">5s</option>
+        <option value="30000">30s</option>
+        <option value="120000">2 min</option>
+        <option value="900000">15 min</option>
+      </select>
+    </span>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark">&#9790;</button>
+  </nav>
+
+  <h1>System Logs</h1>
+
+  <div class="controls">
+    <label>Level</label>
+    <select id="level">
+      <option value="">All Levels</option>
+      <option value="debug">Debug</option>
+      <option value="info" selected>Info</option>
+      <option value="warn">Warn</option>
+      <option value="error">Error</option>
+    </select>
+
+    <label>Category</label>
+    <select id="category">
+      <option value="">All Categories</option>
+      <option value="requests">requests</option>
+      <option value="index">index</option>
+      <option value="replication">replication</option>
+      <option value="health">health</option>
+      <option value="recovery">recovery</option>
+      <option value="admin">admin</option>
+      <option value="lifecycle">lifecycle</option>
+      <option value="errors">errors</option>
+    </select>
+
+    <label>Service</label>
+    <select id="service">
+      <option value="">All Services</option>
+      <option value="s3">s3</option>
+      <option value="coord">coord</option>
+      <option value="admin">admin</option>
+      <option value="internal">internal</option>
+    </select>
+
+    <label>Show</label>
+    <select id="limit">
+      <option value="50">50</option>
+      <option value="100" selected>100</option>
+      <option value="250">250</option>
+      <option value="500">500</option>
+      <option value="1000">1000</option>
+    </select>
+
+    <input type="text" id="search" class="search-box" placeholder="Search messages..."/>
+
+    <button id="btn-refresh" onclick="refresh()">Refresh</button>
+  </div>
+
+  <div class="status-bar" id="status">Loading...</div>
+
+  <div class="log-wrap">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Service</th>
+          <th>Level</th>
+          <th>Category</th>
+          <th>Message</th>
+        </tr>
+      </thead>
+      <tbody id="log-body"></tbody>
+    </table>
+  </div>
+
+<script>
+// -- Nav info (one-time) --
+(function() {
+  var tok = '';
+  try { tok = localStorage.getItem('objstrd_admin_token') || ''; } catch(e) {}
+  var hdrs = tok ? { 'Authorization': 'Bearer ' + tok } : {};
+  fetch('/_admin/info', { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.node_name) { var nn = document.getElementById('nav-node-name'); if (nn) { nn.textContent = d.node_name; nn.style.display = ''; } }
+    if (d.has_raw === false) { var v = document.getElementById('nav-viz'); if (v) v.style.display = 'none'; }
+    if (d.read_only) { var ro = document.getElementById('nav-ro-badge'); if (ro) ro.style.display = ''; }
+  }).catch(function() {});
+})();
+
+let pollMs = 0;
+let pollGen = 0;
+
+function schedulePoll() {
+  if (pollMs <= 0) return;
+  var gen = pollGen;
+  setTimeout(function() {
+    if (gen !== pollGen) return;
+    refresh();
+    if (gen === pollGen) schedulePoll();
+  }, pollMs);
+}
+
+document.getElementById('poll-select').addEventListener('change', function() {
+  pollMs = parseInt(this.value, 10);
+  pollGen++;
+  if (pollMs > 0) schedulePoll();
+});
+
+function getToken() {
+  // Reuse admin token if stored
+  try { return localStorage.getItem('objstrd_admin_token') || ''; } catch(e) { return ''; }
+}
+
+function authHeaders() {
+  const t = getToken();
+  return t ? { 'Authorization': 'Bearer ' + t } : {};
+}
+
+function pillClass(level) {
+  switch ((level || '').toLowerCase()) {
+    case 'error': return 'pill pill-error';
+    case 'warn':  return 'pill pill-warn';
+    case 'debug': return 'pill pill-debug';
+    default:      return 'pill pill-info';
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function refresh() {
+  const level = document.getElementById('level').value;
+  const category = document.getElementById('category').value;
+  const service = document.getElementById('service').value;
+  const limit = document.getElementById('limit').value;
+  const q = document.getElementById('search').value;
+
+  let url = '/_admin/logs?limit=' + limit;
+  if (level) url += '&level=' + level;
+  if (category) url += '&category=' + category;
+  if (service) url += '&service=' + service;
+  if (q) url += '&q=' + encodeURIComponent(q);
+
+  try {
+    const resp = await fetch(url, { headers: authHeaders() });
+    if (resp.status === 403) {
+      document.getElementById('status').textContent = 'Access denied (set admin token)';
+      return;
+    }
+    const data = await resp.json();
+    document.getElementById('status').textContent =
+      'Showing ' + data.returned + ' of ' + data.total + ' total entries';
+
+    const tbody = document.getElementById('log-body');
+    tbody.innerHTML = '';
+    for (const e of data.entries) {
+      const tr = document.createElement('tr');
+      const time = e.time ? e.time.replace('T', ' ').replace('Z', '') : '';
+      tr.innerHTML =
+        '<td>' + escapeHtml(time) + '</td>' +
+        '<td><span class="pill pill-svc">' + escapeHtml(e.service) + '</span></td>' +
+        '<td><span class="' + pillClass(e.level) + '">' + escapeHtml(e.level) + '</span></td>' +
+        '<td><span class="pill pill-cat">' + escapeHtml(e.category) + '</span></td>' +
+        '<td class="msg">' + escapeHtml(e.message) + '</td>';
+      tbody.appendChild(tr);
+    }
+  } catch (err) {
+    document.getElementById('status').textContent = 'Error: ' + err.message;
+  }
+}
+
+// Allow Enter in search box to trigger refresh
+document.getElementById('search').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') refresh();
+});
+
+// Initial load
+refresh();
+</script>
+<script>
+(function(){
+  var t = localStorage.getItem('objstrd-theme');
+  if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = t === 'light' ? '\u2600' : '\u263E';
+})();
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'light' ? 'dark' : 'light';
+  if (next === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('objstrd-theme', next);
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = next === 'light' ? '\u2600' : '\u263E';
+}
+</script>
+</body>
+</html>

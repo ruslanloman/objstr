@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>objstrd - Cluster Dashboard</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --surface:  #161b22;
+    --surface2: #21262d;
+    --border:   #30363d;
+    --text:     #c9d1d9;
+    --text-dim: #8b949e;
+    --text-hi:  #f0f6fc;
+    --accent:   #58a6ff;
+    --green:    #3fb950;
+    --amber:    #d29922;
+    --red:      #f85149;
+  }
+  [data-theme="light"] {
+    --bg:       #ffffff;
+    --surface:  #f6f8fa;
+    --surface2: #eaeef2;
+    --border:   #d0d7de;
+    --text:     #1f2328;
+    --text-dim: #656d76;
+    --text-hi:  #1f2328;
+    --accent:   #0969da;
+    --green:    #1a7f37;
+    --amber:    #9a6700;
+    --red:      #cf222e;
+  }
+  .theme-toggle { background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; line-height: 1; }
+  .theme-toggle:hover { color: var(--text-hi); border-color: var(--accent); }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+  .site-nav { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; align-items: center; }
+  .nav-link { color: var(--text-dim); text-decoration: none; font-size: 13px; padding: 5px 12px; border-radius: 6px; border: 1px solid transparent; }
+  .nav-link:hover { color: var(--text-hi); background: var(--surface2); }
+  .nav-link.active { color: var(--text-hi); background: var(--surface2); border-color: var(--border); }
+  h1 { font-size: 18px; margin-bottom: 12px; color: var(--accent); }
+  h2 { font-size: 12px; margin: 18px 0 8px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+
+  .summary-bar { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+  .summary-bar .stat { display: flex; gap: 4px; }
+  .summary-bar .label { color: var(--text-dim); }
+  .summary-bar .value { color: var(--text-hi); font-weight: 600; }
+
+  .shard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .shard-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; transition: border-color 0.15s; display: flex; flex-direction: column; }
+  .shard-card:hover { border-color: var(--accent); }
+  .shard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .shard-name { font-size: 14px; font-weight: 600; color: var(--text-hi); }
+  .shard-id { font-size: 11px; color: var(--text-dim); }
+  .shard-health { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .shard-health.healthy { color: var(--green); background: rgba(63,185,80,0.12); }
+  .shard-health.degraded { color: var(--amber); background: rgba(210,153,34,0.12); }
+  .shard-health.error { color: var(--red); background: rgba(248,81,73,0.12); }
+  .shard-health.offline { color: var(--red); background: rgba(248,81,73,0.12); }
+  .shard-health.detached { color: var(--amber); background: rgba(210,153,34,0.12); }
+  .shard-card.offline { opacity: 0.55; border-style: dashed; }
+  .shard-card.detached { opacity: 0.55; border-style: dashed; border-color: var(--amber); }
+  .detach-info { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .suppress-badge { font-size: 9px; color: var(--amber); background: rgba(210,153,34,0.12); padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+
+  .recovery-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+  .recovery-panel.warn { border-color: var(--amber); }
+  .recovery-panel.ok { border-color: var(--green); }
+  .recovery-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .recovery-title { font-size: 13px; font-weight: 600; color: var(--text-hi); }
+  .recovery-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .recovery-badge.ok { color: var(--green); background: rgba(63,185,80,0.12); }
+  .recovery-badge.warn { color: var(--amber); background: rgba(210,153,34,0.12); }
+  .recovery-badge.off { color: var(--text-dim); background: var(--surface2); }
+  .recovery-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px 16px; font-size: 12px; color: var(--text-dim); }
+  .recovery-stats .rv { color: var(--text-hi); font-weight: 600; }
+  .under-rep-badge { display: inline-block; background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; }
+  .shard-stats { font-size: 12px; color: var(--text-dim); display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin-bottom: 10px; }
+  .shard-stats .ss-val { color: var(--text-hi); }
+  .bar-track { display: inline-block; width: 100%; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+  .bar-fill { display: block; height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.3s; }
+  .bar-fill.warn { background: var(--amber); }
+  .bar-fill.crit { background: var(--red); }
+  .usage-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 8px; }
+  .usage-pct { color: var(--text-hi); font-weight: 600; min-width: 36px; text-align: right; }
+  .shard-links { display: flex; gap: 6px; margin-top: auto; }
+  .shard-links a { font-size: 11px; color: var(--accent); text-decoration: none; padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px; }
+  .shard-links a:hover { background: var(--surface2); border-color: var(--accent); }
+
+  .action-btn { font-size: 11px; color: var(--text); background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; cursor: pointer; font-family: inherit; }
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .action-btn.warn { color: var(--amber); border-color: var(--amber); }
+  .action-btn.warn:hover { background: rgba(210,153,34,0.15); }
+  .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .action-btn.attach { color: var(--accent); border-color: var(--accent); }
+  .action-btn.attach:hover { background: rgba(88,166,255,0.15); }
+  .toast { position: fixed; bottom: 16px; right: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 16px; font-size: 12px; color: var(--text-hi); z-index: 999; max-width: 420px; word-break: break-word; }
+  .toast.ok { border-color: var(--green); }
+  .toast.err { border-color: var(--red); color: var(--red); }
+
+  #op-log-output::-webkit-scrollbar { width: 6px; }
+  #op-log-output::-webkit-scrollbar-track { background: var(--bg); }
+  #op-log-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  #op-log-output .op-err { color: var(--red); }
+  #op-log-output .op-ok { color: var(--green); }
+  #op-log-output .op-warn { color: var(--amber); }
+
+  .mini-heatmap { display: flex; gap: 1px; margin-top: 10px; margin-bottom: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .hm-cell { flex: 1; height: 8px; border-radius: 1px; min-width: 2px; }
+
+  .status-bar { font-size: 11px; color: var(--text-dim); margin-top: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-right: 5px; vertical-align: middle; animation: live-pulse 2s infinite; }
+  @keyframes live-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(63,185,80,.6); }
+    70%  { box-shadow: 0 0 0 6px rgba(63,185,80,0);  }
+    100% { box-shadow: 0 0 0 0   rgba(63,185,80,0);  }
+  }
+</style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <span id="nav-node-name" style="font-size:13px;font-weight:600;color:var(--text-hi);padding:5px 12px;display:none"></span>
+  <a href="/_admin/" class="nav-link active">Cluster</a>
+  <a href="/_admin/viz" class="nav-link" id="nav-viz">Visualizer</a>
+  <a href="/_admin/ui" class="nav-link">Manager</a>
+  <a href="/_admin/server" class="nav-link">Server Info</a>
+  <a href="/_admin/logs/ui" class="nav-link">Logs</a>
+  <a href="/_admin/config" class="nav-link">Config</a>
+  <span id="nav-ro-badge" style="display:none;margin-left:auto;font-size:11px;font-weight:600;color:var(--amber);background:rgba(210,153,34,0.12);padding:2px 8px;border-radius:10px">READ-ONLY</span>
+  <span style="margin-left:auto;display:flex;align-items:center;gap:4px">
+    <label for="poll-select" style="font-size:11px;color:var(--text-dim)">Poll:</label>
+    <select id="poll-select" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:2px 6px;border-radius:4px;font-size:11px;font-family:inherit">
+      <option value="2000">2s</option>
+      <option value="5000" selected>5s</option>
+      <option value="30000">30s</option>
+      <option value="120000">2 min</option>
+      <option value="900000">15 min</option>
+      <option value="0">None</option>
+    </select>
+  </span>
+  <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark">&#9790;</button>
+</nav>
+
+<div class="summary-bar" id="summary-bar">
+  <div class="stat"><span class="label">Mode:</span> <span class="value" id="sum-mode">-</span></div>
+  <div class="stat"><span class="label">Shards:</span> <span class="value" id="sum-shards">-</span></div>
+  <div class="stat"><span class="label">Replication:</span> <span class="value" id="sum-rf">-</span></div>
+  <div class="stat"><span class="label">Total Files:</span> <span class="value" id="sum-files">-</span></div>
+  <div class="stat"><span class="label">Unique Files:</span> <span class="value" id="sum-unique">-</span></div>
+  <div class="stat"><span class="label">Total Data:</span> <span class="value" id="sum-data">-</span></div>
+  <div class="stat"><span class="label">Total Capacity:</span> <span class="value" id="sum-capacity">-</span></div>
+  <div class="stat"><span class="label">Total Free:</span> <span class="value" id="sum-free">-</span></div>
+  <div class="stat"><span class="label">PID:</span> <span class="value" id="sum-pid">-</span></div>
+  <div class="stat"><span class="label">Build:</span> <span class="value" id="sum-build">-</span></div>
+  <div class="stat" id="sum-ro-wrap" style="display:none"><span class="value" id="sum-ro-badge" style="color:var(--amber);background:rgba(210,153,34,0.12);padding:2px 8px;border-radius:10px;font-size:11px">READ-ONLY</span></div>
+</div>
+
+<div id="event-panel" class="recovery-panel" style="display:none">
+  <div class="recovery-header">
+    <span class="recovery-title">Event Streaming</span>
+    <span class="recovery-badge off" id="evt-badge">-</span>
+  </div>
+  <div class="recovery-stats">
+    <div id="evt-socket-row" style="display:none">Socket: <span class="rv" id="evt-socket-path">-</span></div>
+    <div id="evt-subs-row" style="display:none">Subscribers: <span class="rv" id="evt-subs">-</span></div>
+    <div id="evt-source-row" style="display:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Event Source: <span class="rv" id="evt-source">-</span></div>
+  </div>
+</div>
+
+<div id="recovery-panel" class="recovery-panel">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><button class="action-btn" id="btn-repair-replication" onclick="doRepairReplication()">Repair Replication</button> <button class="action-btn" id="btn-redistribute" onclick="doRedistribute()">Redistribute</button> <button class="action-btn" id="btn-vacuum" onclick="doVacuum()">Vacuum Delete Markers</button> <button class="action-btn" id="btn-cross-verify" onclick="doCrossVerify()">Cross Verify</button> <span class="recovery-badge off" id="rec-badge" style="margin-left:auto">Loading...</span></div>
+  <div class="recovery-stats" style="display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--text-dim)">
+    <div>Under-replicated: <span class="rv" id="rec-under">-</span></div>
+    <div>Over-replicated: <span class="rv" id="rec-over">-</span></div>
+    <div>Delete markers: <span class="rv" id="rec-delete-markers">-</span></div>
+    <div>Poll cycles: <span class="rv" id="rec-cycles">-</span></div>
+    <div>Re-replicated: <span class="rv" id="rec-total">-</span></div>
+    <div>Last sweep: <span class="rv" id="rec-sweep-count">-</span></div>
+    <div>Interval: <span class="rv" id="rec-poll-secs">-</span></div>
+    <div>Last poll: <span class="rv" id="rec-last-poll">-</span></div>
+    <div>Last sweep at: <span class="rv" id="rec-last-sweep">-</span></div>
+  </div>
+</div>
+
+<div id="repair-replication-panel" class="recovery-panel" style="display:none;margin-top:12px">
+  <div class="recovery-header">
+    <span class="recovery-title">Background Repair-Replication</span>
+    <span class="recovery-badge off" id="reb-badge">-</span>
+  </div>
+  <div class="recovery-stats">
+    <div>Phase: <span class="rv" id="reb-phase">-</span></div>
+    <div>Cycles completed: <span class="rv" id="reb-cycles">-</span></div>
+    <div>Objects replicated: <span class="rv" id="reb-replicated">-</span></div>
+    <div>Objects trimmed: <span class="rv" id="reb-trimmed">-</span></div>
+    <div>Catalog size: <span class="rv" id="reb-catalog">-</span></div>
+    <div>Under-replicated: <span class="rv" id="reb-under">-</span></div>
+    <div>Interval: <span class="rv" id="reb-interval">-</span></div>
+    <div>Batch size: <span class="rv" id="reb-batch">-</span></div>
+    <div>Last started: <span class="rv" id="reb-started">-</span></div>
+    <div>Last completed: <span class="rv" id="reb-completed">-</span></div>
+  </div>
+</div>
+
+<div id="op-log-panel" class="recovery-panel" style="display:none;margin-top:12px">
+  <div class="recovery-header">
+    <span class="recovery-title">Operation Log</span>
+    <span style="display:flex;gap:6px;align-items:center">
+      <span class="recovery-badge off" id="op-log-badge">Idle</span>
+      <button class="action-btn" id="btn-op-log-clear" onclick="clearOpLog()" style="font-size:10px;padding:2px 8px">Clear</button>
+    </span>
+  </div>
+  <pre id="op-log-output" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;font-size:11px;font-family:'Cascadia Mono','Fira Code',monospace;color:var(--text);max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;margin:0;line-height:1.5"></pre>
+</div>
+
+<div class="shard-grid" id="shard-grid">
+
+<div class="status-bar">
+  <span><span class="live-dot"></span><span id="status-msg">Connecting...</span></span>
+  <span style="color:var(--text-dim);font-size:10px">build: __BUILD_INFO__</span>
+</div>
+
+<script>
+const _adminToken = new URLSearchParams(location.search).get('token');
+const authFetch = (url, opts) => {
+  if (_adminToken) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'Authorization': 'Bearer ' + _adminToken }, opts.headers || {});
+  }
+  return fetch(url, opts);
+};
+
+function fmtBytes(b) {
+  b = Number(b);
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+  return (b / 1073741824).toFixed(2) + ' GB';
+}
+
+function tokenParam() {
+  return _adminToken ? '?token=' + encodeURIComponent(_adminToken) : '';
+}
+
+function healthClass(h) {
+  if (!h) return 'healthy';
+  const l = h.toLowerCase();
+  if (l === 'healthy' || l === 'ok') return 'healthy';
+  if (l === 'degraded' || l === 'warning') return 'degraded';
+  if (l === 'offline') return 'offline';
+  if (l === 'detached') return 'detached';
+  if (l === 'syncing') return 'degraded';
+  return 'error';
+}
+
+function renderShards(data) {
+  const grid = document.getElementById('shard-grid');
+  if (!data.shards || data.shards.length === 0) {
+    grid.innerHTML = '<div style="color:var(--text-dim)">No shards configured</div>';
+    return;
+  }
+
+  let totalFiles = 0, totalData = 0, totalUsed = 0, totalFree = 0, totalSize = 0;
+
+  const cards = data.shards.map(s => {
+    const isRaw = (s.type === 'raw');
+    const isOffline = s.health && s.health.toLowerCase() === 'offline';
+    const isDetached = s.health && s.health.toLowerCase() === 'detached';
+    const isUnavailable = isOffline || isDetached;
+    totalFiles += s.file_count || 0;
+    totalData += s.data_bytes_stored || 0;
+    totalUsed += s.device_bytes_used || 0;
+    totalFree += (s.free_space != null ? s.free_space : 0);
+    totalSize += (s.device_size != null ? s.device_size : 0);
+
+    const tp = tokenParam();
+    const typeBadge = !isRaw ? '<span class="shard-health" style="color:var(--accent);background:rgba(88,166,255,0.12);margin-left:6px;font-size:10px">' + (s.type || 'unknown') + '</span>' : '';
+
+    const isFs = (s.type === 'fs');
+    const isS3 = (s.type === 's3' || s.type === 'node');
+    const isMem = (s.type === 'mem');
+
+    const usageBar = (isRaw || (isFs && s.device_size)) ? (() => {
+      const pct = s.device_size ? Math.round(s.device_bytes_used / s.device_size * 100) : 0;
+      const cls = pct >= 90 ? 'crit' : pct >= 75 ? 'warn' : '';
+      return `<div class="usage-row">
+        <span class="usage-pct">${pct}%</span>
+        <span class="bar-track"><span class="bar-fill ${cls}" style="width:${pct}%"></span></span>
+      </div>`;
+    })() : '';
+
+    const rawStats = isRaw ? `
+        <div>Size: <span class="ss-val">${fmtBytes(s.device_size || 0)}</span></div>
+        <div>Free: <span class="ss-val">${fmtBytes(s.free_space || 0)}</span></div>
+        <div>Frags: <span class="ss-val">${s.free_fragments || 0}</span></div>
+        <div>IO: <span class="ss-val">${s.direct_io ? 'direct' : 'buffered'}</span></div>
+        <div>Comp: <span class="ss-val">${s.compression || 'none'}</span></div>
+        <div>CRC errors: <span class="ss-val">${s.crc_error_count || 0}</span></div>` : '';
+
+    const fsStats = isFs ? `
+        ${s.device_size ? '<div>Disk: <span class="ss-val">' + fmtBytes(s.device_size) + '</span></div>' : ''}
+        ${s.free_space != null ? '<div>Free: <span class="ss-val">' + fmtBytes(s.free_space) + '</span></div>' : ''}
+        ${s.fs_type ? '<div>FS: <span class="ss-val">' + s.fs_type + '</span></div>' : ''}` : '';
+
+    const s3Stats = isS3 ? `
+        ${s.endpoint ? '<div style="grid-column:1/-1">Endpoint: <span class="ss-val">' + s.endpoint + '</span></div>' : ''}` : '';
+
+    const memStats = isMem ? `
+        <div>Backend: <span class="ss-val">in-memory</span></div>` : '';
+
+    const detachInfo = isDetached ? '<div class="detach-info">' + (s.detach_reason || 'manual') + (s.suppress_replication ? '<span class="suppress-badge">replication suppressed</span>' : '') + '</div>' : '';
+    const links = '';
+
+    return `<div class="shard-card${isDetached ? ' detached' : (isOffline ? ' offline' : '')}">
+      <div class="shard-header">
+        <div>
+          <span class="shard-name">${s.name || ('shard-' + s.id)}</span>
+          <span class="shard-id">#${s.id}</span>${typeBadge}
+        </div>
+        <span class="shard-health ${healthClass(s.health)}">${s.health || 'Unknown'}</span>
+      </div>
+      ${detachInfo}
+      ${usageBar}
+      <div class="shard-stats">
+        <div>Files: <span class="ss-val">${s.file_count || 0}</span></div>
+        <div>Data: <span class="ss-val">${fmtBytes(s.data_bytes_stored || 0)}</span></div>
+        <div>Type: <span class="ss-val">${s.type || 'raw'}</span></div>${rawStats}${fsStats}${s3Stats}${memStats}
+      </div>
+      ${isRaw ? '<div class="mini-heatmap" id="heatmap-' + s.id + '"></div>' : ''}
+      <div class="shard-links">
+        ${links}
+        ${isUnavailable ? '' : '<button class="action-btn warn" onclick="doDrain(' + s.id + ', this)">Drain</button>'}
+        ${isUnavailable ? '' : '<button class="action-btn warn" onclick="doTakeOffline(' + s.id + ', this)">Take Offline</button>'}
+        ${isDetached ? '<button class="action-btn attach" onclick="doAttach(' + s.id + ', this)">Attach</button>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  grid.innerHTML = cards;
+
+  document.getElementById('sum-shards').textContent = data.shard_count;
+  document.getElementById('sum-rf').textContent = data.replication_factor + 'x';
+  document.getElementById('sum-mode').textContent = data.mode;
+  document.getElementById('sum-files').textContent = totalFiles;
+  document.getElementById('sum-data').textContent = fmtBytes(totalData);
+  document.getElementById('sum-capacity').textContent = fmtBytes(totalSize);
+  document.getElementById('sum-free').textContent = fmtBytes(totalFree);
+
+  // Disable repair-replication/drain only when there are fewer than 2 healthy shards.
+  // The admin-op-status check (below) handles the "another task running" case.
+  var shardCount = data.shards.length;
+  var healthyCount = data.shards.filter(function(s) {
+    return !s.health || s.health.toLowerCase() === 'healthy';
+  }).length;
+  var canRepair = healthyCount >= 2;
+  var repairBtn = document.getElementById('btn-repair-replication');
+  repairBtn.disabled = !canRepair;
+  if (!canRepair) {
+    repairBtn.title = 'Repair Replication requires at least 2 healthy shards';
+  } else {
+    repairBtn.title = '';
+  }
+  // Redistribute: also needs canRepair, plus no under-replicated objects
+  var redistBtn = document.getElementById('btn-redistribute');
+  var underRep = parseInt(document.getElementById('rec-under').textContent, 10) || 0;
+  var canRedist = canRepair && underRep === 0;
+  redistBtn.disabled = !canRedist;
+  if (!canRepair) {
+    redistBtn.title = 'Redistribute requires at least 2 healthy shards';
+  } else if (underRep > 0) {
+    redistBtn.title = 'Redistribute requires no under-replicated objects (run Repair Replication first)';
+  } else {
+    redistBtn.title = '';
+  }
+  // Disable drain buttons on individual shard cards when fewer than 2 healthy shards
+  grid.querySelectorAll('.action-btn.warn').forEach(function(btn) {
+    btn.disabled = !canRepair;
+    if (!canRepair) {
+      btn.title = 'Drain requires at least 2 healthy shards';
+    } else {
+      btn.title = '';
+    }
+  });
+  // Vacuum: only needs at least 1 healthy shard
+  var vacuumBtn = document.getElementById('btn-vacuum');
+  vacuumBtn.disabled = healthyCount < 1;
+  vacuumBtn.title = healthyCount < 1 ? 'Vacuum requires at least one healthy shard' : '';
+
+
+
+  // Fetch mini heatmaps for raw shards only
+  data.shards.forEach(function(s) {
+    if (s.type !== 'raw') return;
+    authFetch('/_admin/shard/' + s.id + '/heatmap?chunks=32')
+      .then(function(r) { return r.json(); })
+      .then(function(hm) {
+        var el = document.getElementById('heatmap-' + s.id);
+        if (!el || !hm.used_bytes) return;
+        var html = '';
+        for (var i = 0; i < hm.used_bytes.length; i++) {
+          var total = Number(hm.used_bytes[i]) + Number(hm.free_bytes[i]) + Number(hm.dead_bytes[i]);
+          var pct = total > 0 ? Math.round(Number(hm.used_bytes[i]) / total * 100) : 0;
+          var color;
+          if (pct === 0) color = 'var(--surface2)';
+          else if (pct < 50) color = 'var(--green)';
+          else if (pct < 80) color = 'var(--accent)';
+          else if (pct < 95) color = 'var(--amber)';
+          else color = 'var(--red)';
+          html += '<span class="hm-cell" style="background:' + color + '" title="' + pct + '% used"></span>';
+        }
+        el.innerHTML = html;
+      })
+      .catch(function() {});
+  });
+}
+
+function fmtTime(iso) {
+  if (!iso) return 'never';
+  try { return new Date(iso).toLocaleTimeString(); } catch(e) { return iso; }
+}
+
+function renderRecovery(rec) {
+  const panel = document.getElementById('recovery-panel');
+  const badge = document.getElementById('rec-badge');
+  const under = rec.under_replicated_count || 0;
+
+  if (!rec.enabled) {
+    badge.textContent = 'Disabled';
+    badge.className = 'recovery-badge off';
+    panel.className = 'recovery-panel';
+  } else if (under > 0) {
+    badge.textContent = under + ' under-replicated';
+    badge.className = 'recovery-badge warn';
+    panel.className = 'recovery-panel warn';
+  } else if ((rec.over_replicated_count || 0) > 0) {
+    badge.textContent = rec.over_replicated_count + ' over-replicated';
+    badge.className = 'recovery-badge warn';
+    panel.className = 'recovery-panel warn';
+  } else {
+    badge.textContent = 'Healthy';
+    badge.className = 'recovery-badge ok';
+    panel.className = 'recovery-panel ok';
+  }
+
+  document.getElementById('rec-under').textContent = under;
+  var over = rec.over_replicated_count || 0;
+  document.getElementById('rec-over').textContent = over;
+  document.getElementById('rec-delete-markers').textContent = rec.delete_marker_count != null ? rec.delete_marker_count : '-';
+  document.getElementById('rec-cycles').textContent = rec.poll_cycles != null ? rec.poll_cycles : '-';
+  document.getElementById('rec-total').textContent = rec.total_re_replicated != null ? rec.total_re_replicated : '-';
+  document.getElementById('rec-sweep-count').textContent = rec.last_sweep_count != null ? rec.last_sweep_count : '-';
+  document.getElementById('rec-poll-secs').textContent = rec.poll_interval_secs != null ? rec.poll_interval_secs + 's' : '-';
+  document.getElementById('rec-last-poll').textContent = fmtTime(rec.last_poll_at);
+  document.getElementById('rec-last-sweep').textContent = fmtTime(rec.last_sweep_at);
+}
+
+function renderRepairReplication(reb) {
+  var panel = document.getElementById('repair-replication-panel');
+  var badge = document.getElementById('reb-badge');
+
+  if (!reb.enabled) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+
+  var phase = reb.phase || 'idle';
+  if (phase === 'idle' && reb.remaining_under_replicated === 0) {
+    badge.textContent = 'Idle';
+    badge.className = 'recovery-badge ok';
+    panel.className = 'recovery-panel ok';
+  } else if (phase === 'idle') {
+    badge.textContent = reb.remaining_under_replicated + ' remaining';
+    badge.className = 'recovery-badge warn';
+    panel.className = 'recovery-panel warn';
+  } else {
+    badge.textContent = phase;
+    badge.className = 'recovery-badge warn';
+    panel.className = 'recovery-panel warn';
+  }
+
+  document.getElementById('reb-phase').textContent = phase;
+  document.getElementById('reb-cycles').textContent = reb.cycles_completed != null ? reb.cycles_completed : '-';
+  document.getElementById('reb-replicated').textContent = reb.total_objects_replicated != null ? reb.total_objects_replicated : '-';
+  document.getElementById('reb-trimmed').textContent = reb.total_objects_trimmed != null ? reb.total_objects_trimmed : '-';
+  document.getElementById('reb-catalog').textContent = reb.last_catalog_size != null ? reb.last_catalog_size : '-';
+  document.getElementById('reb-under').textContent = reb.remaining_under_replicated != null ? reb.remaining_under_replicated : '-';
+  document.getElementById('reb-interval').textContent = reb.interval_secs != null ? reb.interval_secs + 's' : '-';
+  document.getElementById('reb-batch').textContent = reb.batch_size != null ? reb.batch_size : '-';
+  document.getElementById('reb-started').textContent = fmtTime(reb.last_started_at);
+  document.getElementById('reb-completed').textContent = fmtTime(reb.last_completed_at);
+}
+
+async function poll() {
+  const statusEl = document.getElementById('status-msg');
+  try {
+    const [shardsR, infoR, recR, objR, rebR, adminOpR] = await Promise.all([
+      authFetch('/_admin/shards'),
+      authFetch('/_admin/info'),
+      authFetch('/_admin/recovery'),
+      authFetch('/_admin/objects?limit=1'),
+      authFetch('/_admin/repair-replication-status'),
+      authFetch('/_admin/admin-op-status'),
+    ]);
+    if (shardsR.ok) {
+      const data = await shardsR.json();
+      renderShards(data);
+    }
+    if (infoR.ok) {
+      const info = await infoR.json();
+      document.getElementById('sum-pid').textContent = info.pid || '-';
+      document.getElementById('sum-build').textContent = info.build_git_hash || '-';
+
+      // Read-only badge
+      var roWrap = document.getElementById('sum-ro-wrap');
+      roWrap.style.display = info.read_only ? '' : 'none';
+      var navRo = document.getElementById('nav-ro-badge');
+      if (navRo) navRo.style.display = info.read_only ? '' : 'none';
+
+      // Node name in nav
+      if (info.node_name) {
+        var nn = document.getElementById('nav-node-name');
+        if (nn) { nn.textContent = info.node_name; nn.style.display = ''; }
+      }
+      // Hide Visualizer link if no raw store
+      if (info.has_raw === false) {
+        var viz = document.getElementById('nav-viz');
+        if (viz) viz.style.display = 'none';
+      }
+
+      // Event streaming panel
+      var evtPanel = document.getElementById('event-panel');
+      var evtBadge = document.getElementById('evt-badge');
+      var hasSocket = !!info.event_socket;
+      var hasSource = !!info.event_source;
+      if (hasSocket || hasSource) {
+        evtPanel.style.display = '';
+        if (hasSocket) {
+          document.getElementById('evt-socket-row').style.display = '';
+          document.getElementById('evt-socket-path').textContent = info.event_socket;
+          document.getElementById('evt-subs-row').style.display = '';
+          document.getElementById('evt-subs').textContent = info.event_socket_subscribers;
+          evtBadge.textContent = info.event_socket_subscribers + ' subscriber' + (info.event_socket_subscribers === 1 ? '' : 's');
+          evtBadge.className = 'recovery-badge ' + (info.event_socket_subscribers > 0 ? 'ok' : 'off');
+          evtPanel.className = 'recovery-panel' + (info.event_socket_subscribers > 0 ? ' ok' : '');
+        }
+        if (hasSource) {
+          document.getElementById('evt-source-row').style.display = '';
+          document.getElementById('evt-source').textContent = info.event_source;
+          if (!hasSocket) {
+            evtBadge.textContent = 'Streaming Replica';
+            evtBadge.className = 'recovery-badge ok';
+            evtPanel.className = 'recovery-panel ok';
+          }
+        }
+      } else {
+        evtPanel.style.display = 'none';
+      }
+    }
+    if (recR && recR.ok) {
+      const rec = await recR.json();
+      renderRecovery(rec);
+    }
+    if (rebR && rebR.ok) {
+      const reb = await rebR.json();
+      renderRepairReplication(reb);
+    }
+    if (objR && objR.ok) {
+      const obj = await objR.json();
+      document.getElementById('sum-unique').textContent = obj.total != null ? obj.total : '-';
+    }
+    // Disable all admin buttons while an admin operation is running
+    if (adminOpR && adminOpR.ok) {
+      const aop = await adminOpR.json();
+      if (aop.running) {
+        var opName = aop.operation || 'operation';
+        document.querySelectorAll('.action-btn').forEach(function(b) {
+          if (b.closest('#op-log-panel')) return;
+          b.disabled = true;
+          b.title = opName + ' is in progress';
+        });
+      }
+    }
+    statusEl.textContent = 'Last update: ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+  }
+}
+
+var pollMs = 5000;
+var pollGen = 0;
+
+function schedulePoll() {
+  if (pollMs <= 0) return;
+  var gen = pollGen;
+  setTimeout(function() {
+    if (gen !== pollGen) return;
+    poll();
+    if (gen === pollGen) schedulePoll();
+  }, pollMs);
+}
+
+document.getElementById('poll-select').addEventListener('change', function() {
+  pollMs = parseInt(this.value, 10);
+  pollGen++;
+  var dot = document.querySelector('.live-dot');
+  if (dot) dot.style.animationPlayState = pollMs > 0 ? 'running' : 'paused';
+  if (pollMs > 0) schedulePoll();
+});
+
+function showToast(msg, ok) {
+  var old = document.querySelector('.toast');
+  if (old) old.remove();
+  var el = document.createElement('div');
+  el.className = 'toast ' + (ok ? 'ok' : 'err');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function() { el.remove(); }, 6000);
+}
+
+async function doRepairReplication() {
+  var btn = document.getElementById('btn-repair-replication');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  await openOpLog();
+  try {
+    var r = await authFetch('/_admin/repair-replication', { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      showToast('Repair Replication: ' + (j.re_replicated || 0) + ' replicated, ' + (j.trimmed || 0) + ' trimmed, ' + (j.under_remaining || 0) + ' under, ' + (j.over_remaining || 0) + ' over', true);
+    } else {
+      showToast('Repair Replication failed: ' + (j.error || 'unknown'), false);
+    }
+  } catch (e) {
+    showToast('Repair Replication error: ' + e.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Repair Replication';
+  poll();
+}
+
+async function doRedistribute() {
+  if (!confirm('Redistribute objects across shards to balance object counts?')) return;
+  var btn = document.getElementById('btn-redistribute');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  await openOpLog();
+  try {
+    var r = await authFetch('/_admin/redistribute', { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      showToast('Redistribute: ' + (j.moved || 0) + ' moved, ' + (j.skipped || 0) + ' skipped, ' + (j.errors || 0) + ' errors', true);
+    } else {
+      showToast('Redistribute failed: ' + (j.error || 'unknown'), false);
+    }
+  } catch (e) {
+    showToast('Redistribute error: ' + e.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Redistribute';
+  poll();
+}
+
+async function doVacuum() {
+  var btn = document.getElementById('btn-vacuum');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  await openOpLog();
+  try {
+    var r = await authFetch('/_admin/vacuum', { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      showToast('Vacuum: ' + (j.purged || 0) + ' markers purged, ' + (j.cleaned || 0) + ' stale objects cleaned', true);
+    } else {
+      showToast('Vacuum failed: ' + (j.error || 'unknown'), false);
+    }
+  } catch (e) {
+    showToast('Vacuum error: ' + e.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Vacuum Delete Markers';
+  poll();
+}
+
+async function doDrain(shardId, btn) {
+  if (!confirm('Drain shard ' + shardId + '? This will mark it offline and move all objects to other shards.')) return;
+  btn.disabled = true;
+  btn.textContent = 'Draining...';
+  await openOpLog();
+  try {
+    var r = await authFetch('/_admin/drain/' + shardId, { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      showToast('Drain shard ' + shardId + ': moved=' + (j.moved || 0) + ', skipped=' + (j.skipped || 0) + ', deleted=' + (j.deleted || 0) + ', re_replicated=' + (j.re_replicated || 0) + ', under_remaining=' + (j.under_remaining || 0) + ', errors=' + (j.errors || 0), true);
+    } else {
+      showToast('Drain failed: ' + (j.error || 'unknown'), false);
+    }
+  } catch (e) {
+    showToast('Drain error: ' + e.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Drain';
+  poll();
+}
+
+async function doTakeOffline(shardId, btn) {
+  var suppress = confirm('Suppress re-replication while shard ' + shardId + ' is offline?\n\nOK = suppress (objects will NOT be re-replicated)\nCancel = allow re-replication after grace period');
+  if (!confirm('Take shard ' + shardId + ' offline?' + (suppress ? ' (re-replication suppressed)' : ''))) return;
+  btn.disabled = true;
+  btn.textContent = 'Detaching...';
+  try {
+    var url = '/_admin/take-offline/' + shardId;
+    if (suppress) url += '?suppress_replication=true';
+    var r = await authFetch(url, { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      showToast('Shard ' + shardId + ' taken offline (was ' + (j.previous_health || 'unknown') + ')', true);
+    } else {
+      showToast('Take offline failed: ' + (j.error || 'unknown'), false);
+    }
+  } catch (e) {
+    showToast('Take offline error: ' + e.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Take Offline';
+  poll();
+}
+
+async function doAttach(shardId, btn) {
+  if (!confirm('Attach shard ' + shardId + '? This will reopen the store and rescan the index.')) return;
+  btn.disabled = true;
+  btn.textContent = 'Attaching...';
+  try {
+    var r = await authFetch('/_admin/attach/' + shardId, { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      showToast('Shard ' + shardId + ' attached: ' + (j.objects_found || 0) + ' objects found', true);
+    } else {
+      showToast('Attach failed: ' + (j.error || 'unknown'), false);
+    }
+  } catch (e) {
+    showToast('Attach error: ' + e.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Attach';
+  poll();
+}
+
+poll();
+schedulePoll();
+
+var _opLogEvtSrc = null;
+
+function openOpLog() {
+  var panel = document.getElementById('op-log-panel');
+  panel.style.display = '';
+  var badge = document.getElementById('op-log-badge');
+  badge.textContent = 'Connecting...';
+  badge.className = 'recovery-badge warn';
+  var pre = document.getElementById('op-log-output');
+  pre.textContent = '';
+  if (_opLogEvtSrc) { _opLogEvtSrc.close(); _opLogEvtSrc = null; }
+  var url = '/_admin/op-log/stream';
+  if (_adminToken) url += '?token=' + encodeURIComponent(_adminToken);
+  var es = new EventSource(url);
+  _opLogEvtSrc = es;
+  return new Promise(function(resolve) {
+  es.onopen = function() {
+    badge.textContent = 'Running';
+    resolve();
+  };
+  es.onmessage = function(e) {
+    try {
+      var d = JSON.parse(e.data);
+      var msg = d.message || '';
+      var line = document.createElement('span');
+      if (msg.indexOf('FAILED') >= 0 || msg.indexOf('ERROR') >= 0) {
+        line.className = 'op-err';
+      } else if (msg.indexOf('MISMATCH') >= 0) {
+        line.className = 'op-warn';
+      } else if (msg.indexOf('completed') >= 0) {
+        line.className = 'op-ok';
+      }
+      line.textContent = msg + '\n';
+      pre.appendChild(line);
+      pre.scrollTop = pre.scrollHeight;
+    } catch (ex) {}
+  };
+  es.addEventListener('done', function() {
+    badge.textContent = 'Done';
+    badge.className = 'recovery-badge ok';
+    es.close();
+    _opLogEvtSrc = null;
+  });
+  es.onerror = function() {
+    badge.textContent = 'Disconnected';
+    badge.className = 'recovery-badge off';
+    es.close();
+    _opLogEvtSrc = null;
+    resolve();
+  };
+  });
+}
+
+function clearOpLog() {
+  document.getElementById('op-log-output').textContent = '';
+  if (_opLogEvtSrc) { _opLogEvtSrc.close(); _opLogEvtSrc = null; }
+  document.getElementById('op-log-panel').style.display = 'none';
+  var badge = document.getElementById('op-log-badge');
+  badge.textContent = 'Idle';
+  badge.className = 'recovery-badge off';
+}
+
+async function doCrossVerify() {
+  var btn = document.getElementById('btn-cross-verify');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  await openOpLog();
+  try {
+    var r = await authFetch('/_admin/cross-verify', { method: 'POST' });
+    var j = await r.json();
+    if (j.ok) {
+      var mismatch = j.objects_mismatched || 0;
+      var errors = j.objects_with_errors || 0;
+      var ok = (mismatch === 0 && errors === 0);
+      showToast('Cross Verify: checked=' + (j.objects_checked || 0) + ', ok=' + (j.objects_ok || 0) + ', mismatched=' + mismatch + ', errors=' + errors, ok);
+    } else {
+      showToast('Cross Verify failed: ' + (j.error || 'unknown'), false);
+    }
+  } catch (e) {
+    showToast('Cross Verify error: ' + e.message, false);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Cross Verify';
+  poll();
+}
+</script>
+<script>
+(function(){
+  var t = localStorage.getItem('objstrd-theme');
+  if (!t) t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = t === 'light' ? '\u2600' : '\u263E';
+})();
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'light' ? 'dark' : 'light';
+  if (next === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('objstrd-theme', next);
+  var btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = next === 'light' ? '\u2600' : '\u263E';
+}
+</script>
+</body>
+</html>
