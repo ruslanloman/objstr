@@ -148,6 +148,94 @@ See [cluster config reference](CONFIG.md) for the full syntax.
 
 ---
 
+## Docker
+
+### Build the image
+
+```bash
+docker build -t objstr .
+```
+
+The multi-stage Dockerfile compiles all workspace binaries in a cached builder layer and produces a minimal Debian runtime image (~50 MB + binaries). The build bakes the git commit hash into each binary for version tracking.
+
+### Run standalone (file-backed)
+
+```bash
+docker run --rm -p 8000:8000 objstr \
+  --image /data/store.raw --size-mb 512 --port 8000
+```
+
+Data lives inside the container by default. To persist it, mount a volume:
+
+```bash
+docker run --rm -p 8000:8000 -v objstr-data:/data objstr \
+  --image /data/store.raw --size-mb 512 --port 8000
+```
+
+### Run with a block device
+
+```bash
+docker run --rm --privileged --device /dev/nvme0n1 -p 8000:8000 \
+  objstr --image /dev/nvme0n1 --port 8000
+```
+
+`--privileged` and `--device` are required for O_DIRECT access to raw block devices.
+
+### Run a 3-node cluster with Compose
+
+The included `docker-compose.yml` spins up a 3-node cluster (top + node-a + node-b) with rf=2 replication, health checks, and named volumes:
+
+```bash
+# Build and start all nodes
+docker compose up --build
+
+# Start in the background
+docker compose up --build -d
+
+# Stop and remove all data
+docker compose down -v
+```
+
+The cluster topology is defined in `docker/cluster.conf`:
+
+```
+top (rf=2) -- shard 0: local raw    -- shard 1: local raw
+           -- shard 2: node-a (S3)  -- shard 3: node-b (S3)
+
+node-a (rf=1) -- shard 0: local raw -- shard 1: local raw
+node-b (rf=1) -- shard 0: local raw -- shard 1: local raw
+```
+
+Objects written to the top node are replicated to 2 of its 4 shards. Each child node manages its own local storage independently.
+
+**S3 endpoint** (top node):
+
+```bash
+aws --endpoint-url http://localhost:8000 s3 cp myfile s3://default/myfile
+aws --endpoint-url http://localhost:8000 s3 ls s3://default/
+```
+
+**Web UIs:**
+
+| URL | Page |
+|-----|------|
+| http://localhost:8000/ui.html | Object browser (top node) |
+| http://localhost:8000/cluster.html | Cluster dashboard |
+| http://localhost:8001/server.html | node-a server info |
+| http://localhost:8002/server.html | node-b server info |
+
+### Customizing the cluster
+
+Edit `docker/cluster.conf` to change shard sizes, replication factor, compression, or add more nodes. To add a fourth node, add a new service in `docker-compose.yml` following the `node-b` pattern and reference it in the config file. See [cluster config reference](CONFIG.md) for the full syntax.
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RUST_LOG` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
+
+---
+
 ## Building
 
 All building and testing happens on Linux (O_DIRECT and block device ioctls are Linux-only):
@@ -173,6 +261,7 @@ cargo test -p objstrd --release
 | `shardedobjstr/` | shardedobjstr | Sharding, replication, placement catalog, repair |
 | `shardedobjstr/python/` | pyshardedobjstr | Python bindings for sharded store |
 | `objstrd/` | objstrd | S3-compatible daemon with web UI and admin API |
+| `docker/` | -- | Docker cluster config and support files |
 | `external-tests/` | -- | Integration test suites (S3 compat, large objects, cluster) |
 
 ---

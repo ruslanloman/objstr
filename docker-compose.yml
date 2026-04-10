@@ -1,0 +1,102 @@
+# docker-compose.yml -- Local 3-node objstr cluster
+#
+# Topology (see docker/cluster.conf):
+#   top     -> entry point, rf=2 across 2 local + 2 remote shards
+#   node-a  -> child node, 2 local raw shards
+#   node-b  -> child node, 2 local raw shards
+#
+# Usage:
+#   docker compose up --build            # build image and start cluster
+#   docker compose up -d                 # start in background (image must exist)
+#   docker compose down -v               # stop and remove volumes (data)
+#
+# S3 endpoint:
+#   aws --endpoint-url http://localhost:8000 s3 ls
+#   aws --endpoint-url http://localhost:8000 s3 cp myfile s3://default/myfile
+#
+# Admin UIs:
+#   http://localhost:8000/ui.html         # top node - object browser
+#   http://localhost:8000/cluster.html    # top node - cluster dashboard
+#   http://localhost:8001/server.html     # node-a - server info
+#   http://localhost:8002/server.html     # node-b - server info
+
+services:
+  top:
+    build: .
+    command:
+      - --config
+      - /etc/objstr/cluster.conf
+      - --node
+      - top
+    volumes:
+      - ./docker/cluster.conf:/etc/objstr/cluster.conf:ro
+      - top-data:/data
+    ports:
+      - "8000:8000"
+    environment:
+      RUST_LOG: info
+    depends_on:
+      node-a:
+        condition: service_started
+      node-b:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "cat < /dev/tcp/127.0.0.1/8000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  node-a:
+    build: .
+    command:
+      - --config
+      - /etc/objstr/cluster.conf
+      - --node
+      - node-a
+    volumes:
+      - ./docker/cluster.conf:/etc/objstr/cluster.conf:ro
+      - node-a-data:/data
+    ports:
+      - "8001:8000"
+    environment:
+      RUST_LOG: info
+    healthcheck:
+      test: ["CMD-SHELL", "cat < /dev/tcp/127.0.0.1/8000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  node-b:
+    build: .
+    command:
+      - --config
+      - /etc/objstr/cluster.conf
+      - --node
+      - node-b
+    volumes:
+      - ./docker/cluster.conf:/etc/objstr/cluster.conf:ro
+      - node-b-data:/data
+    ports:
+      - "8002:8000"
+    environment:
+      RUST_LOG: info
+    healthcheck:
+      test: ["CMD-SHELL", "cat < /dev/tcp/127.0.0.1/8000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  top-data:
+  node-a-data:
+  node-b-data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

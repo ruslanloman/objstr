@@ -1,0 +1,32 @@
+target/
+build-*/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+.pytest_cache/
+.tox/
+.eggs/
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+
+# Test artifacts
+*.raw
+store.raw
+
+# Internal dev files
+tmp_*.sh
+tmp_*.py
+
+# Images / docs not needed for build
+images/
+external-tests/
+demo/
